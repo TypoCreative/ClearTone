@@ -30,8 +30,23 @@ export function StrengthSlider({ snapshot, variant = "app" }: Props) {
 
   return (
     <div className={variant === "tray" ? "space-y-1.5" : "space-y-2"}>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
+      <div
+        className={cn(
+          "flex items-center justify-between uppercase tracking-wide",
+          variant === "tray"
+            ? "text-[10px] font-semibold tracking-[0.18em] text-slate-400"
+            : "text-[11px] font-semibold text-muted-foreground"
+        )}
+      >
+        <span>{label}</span>
+        <span
+          className={cn(
+            "font-mono tabular-nums",
+            variant === "tray" ? "text-[12px] font-semibold text-white" : "text-sm font-semibold text-primary"
+          )}
+        >
+          {formatPercent(strengthValue / 100)}
+        </span>
       </div>
       <div className="flex items-center gap-3">
         <input
@@ -42,17 +57,12 @@ export function StrengthSlider({ snapshot, variant = "app" }: Props) {
           step={1}
           onInput={handleInput}
           onChange={handleCommit}
+          style={{ "--value-percent": `${strengthValue}%` } as React.CSSProperties}
           className={cn(
-            "h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-[hsl(var(--primary))]",
-            "[&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-secondary",
-            "[&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-primary/40 [&::-webkit-slider-thumb]:bg-background [&::-webkit-slider-thumb]:shadow",
-            "[&::-moz-range-track]:h-2 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:border-0 [&::-moz-range-track]:bg-secondary",
-            "[&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-primary/40 [&::-moz-range-thumb]:bg-background [&::-moz-range-thumb]:shadow"
+            "range-futuristic",
+            variant === "tray" && "range-futuristic-sm"
           )}
         />
-        <div className={variant === "tray" ? "w-10 text-right font-mono text-xs" : "w-12 text-right font-mono text-sm"}>
-          {formatPercent(strengthValue / 100)}
-        </div>
       </div>
     </div>
   );

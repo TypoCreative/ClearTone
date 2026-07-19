@@ -9,6 +9,9 @@ type Props = {
 };
 
 export function TrayDeviceSelect({ snapshot, value, disabled }: Props) {
+  const systemInput = snapshot.inputs.find((input) => input.isDefault);
+  const systemInputLabel = systemInput?.name ?? "System";
+
   const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextValue = event.target.value;
 
@@ -22,18 +25,18 @@ export function TrayDeviceSelect({ snapshot, value, disabled }: Props) {
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mic</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Mic Input</div>
       <select
         value={value}
         onChange={handleChange}
         disabled={disabled}
         className={cn(
-          "h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "h-9 w-full rounded-xl border border-white/12 bg-white/8 px-3 text-[13px] font-medium text-white outline-none transition-colors backdrop-blur-xl",
+          "focus-visible:border-white/30 focus-visible:bg-white/12",
           "disabled:cursor-not-allowed disabled:opacity-50"
         )}
       >
-        <option value="__follow_system__">Follow system input</option>
+        <option value="__follow_system__">Follow system input ({systemInputLabel})</option>
         {snapshot.inputs.map((input) => (
           <option key={input.id} value={input.id}>
             {input.name}

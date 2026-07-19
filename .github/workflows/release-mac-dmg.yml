@@ -32,6 +32,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Print macOS toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
       - name: Build native engine (release)
         run: |
           cd native/swift-engine

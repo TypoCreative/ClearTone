@@ -10,9 +10,9 @@ function applyTheme(theme: ThemePreference) {
 
 export function useThemePreference() {
   const [theme, setTheme] = useState<ThemePreference>(() => {
-    if (typeof window === "undefined") return "light";
+    if (typeof window === "undefined") return "dark";
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored === "dark" ? "dark" : "light";
+    return stored === "light" ? "light" : "dark";
   });
 
   useEffect(() => {

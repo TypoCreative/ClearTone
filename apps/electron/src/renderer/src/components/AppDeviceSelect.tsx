@@ -1,4 +1,5 @@
 import type { ChangeEvent } from "react";
+import { ChevronDownIcon } from "@radix-ui/react-icons";
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
 import { formatDeviceMode } from "../utils/engineUi";
@@ -24,27 +25,30 @@ export function AppDeviceSelect({ snapshot, selectedInput, value, disabled }: Pr
 
   return (
     <div className="space-y-2">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Select Device
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Input Device
       </div>
-      <select
-        value={value}
-        onChange={handleChange}
-        disabled={disabled}
-        className={cn(
-          "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          "disabled:cursor-not-allowed disabled:opacity-50"
-        )}
-      >
-        <option value="__follow_system__">Follow system input</option>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={handleChange}
+          disabled={disabled}
+          className={cn(
+            "h-11 w-full appearance-none rounded-xl border border-border/60 bg-background/40 px-4 pr-10 text-sm font-medium text-foreground outline-none backdrop-blur-md transition-all",
+            "focus-visible:border-primary/50 focus-visible:bg-background/60 focus-visible:ring-2 focus-visible:ring-primary/30",
+            "disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+        >
+          <option value="__follow_system__">Follow system input</option>
           {snapshot.inputs.map((input) => (
-          <option key={input.id} value={input.id}>
+            <option key={input.id} value={input.id}>
               {input.name}
               {input.isDefault ? " (System)" : ""}
-          </option>
+            </option>
           ))}
-      </select>
+        </select>
+        <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
       <div className="text-xs text-muted-foreground">{formatDeviceMode(snapshot, selectedInput)}</div>
     </div>
   );

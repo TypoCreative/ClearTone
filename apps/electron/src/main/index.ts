@@ -2,7 +2,6 @@ import {
   app,
   BrowserWindow,
   ipcMain,
-  Menu,
   Tray,
   nativeImage,
   screen
@@ -17,6 +16,7 @@ import {
   type EngineCommand,
   type EngineSnapshot
 } from "@contracts";
+import { loadSettings, saveSettings } from "./settings";
 
 let mainWindow: BrowserWindow | null = null;
 let popupWindow: BrowserWindow | null = null;
@@ -24,6 +24,7 @@ let nativeEngine: ChildProcessWithoutNullStreams | null = null;
 let tray: Tray | null = null;
 let stdoutBuffer = "";
 let engineSnapshot: EngineSnapshot = createInitialSnapshot();
+let appSettings = loadSettings();
 
 app.commandLine.appendSwitch("no-sandbox");
 app.commandLine.appendSwitch("disable-gpu");
@@ -64,6 +65,10 @@ function createTrayImage() {
 }
 
 function ensureWindow(): void {
+  if (appSettings.trayOnlyMode) {
+    return;
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
     mainWindow.focus();
@@ -79,8 +84,8 @@ function ensurePopupWindow(): BrowserWindow {
   }
 
   popupWindow = new BrowserWindow({
-    width: 340,
-    height: 320,
+    width: 360,
+    height: 260,
     frame: false,
     resizable: false,
     show: false,
@@ -154,6 +159,7 @@ function togglePopupWindow(): void {
   positionPopupWindow();
   popup.show();
   popup.focus();
+  pushSettings();
 }
 
 function refreshTray(): void {
@@ -161,59 +167,10 @@ function refreshTray(): void {
     return;
   }
 
-  const canStart =
-    engineSnapshot.phase !== "starting" &&
-    engineSnapshot.phase !== "processing" &&
-    engineSnapshot.inputs.length > 0 &&
-    engineSnapshot.permission !== "denied" &&
-    engineSnapshot.permission !== "restricted";
   const canStop =
     engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
 
-  const deviceItems = engineSnapshot.inputs.length
-    ? [
-        {
-          label: "Follow System Input",
-          type: "radio" as const,
-          checked: engineSnapshot.followSystemInput,
-          click: () => {
-            sendCommand({ type: "followSystemInput" });
-          }
-        },
-        { type: "separator" as const },
-        ...engineSnapshot.inputs.map((input) => ({
-          label: input.name,
-          type: "radio" as const,
-          checked: !engineSnapshot.followSystemInput && input.id === engineSnapshot.selectedInputId,
-          click: () => {
-            sendCommand({ type: "selectInput", inputId: input.id });
-          }
-        }))
-      ]
-    : [{ label: "No microphone devices", enabled: false }]
-
   tray.setToolTip(`ClearTone · ${canStop ? "On" : "Off"}`);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        label: `Status: ${canStop ? "On" : "Off"}`,
-        enabled: false
-      },
-      { type: "separator" },
-      {
-        label: "Show ClearTone",
-        click: () => {
-          ensureWindow();
-        }
-      },
-      {
-        label: "Quit",
-        click: () => {
-          app.quit();
-        }
-      }
-    ])
-  );
 }
 
 function createTray(): void {
@@ -227,7 +184,7 @@ function createTray(): void {
     togglePopupWindow();
   });
   tray.on("right-click", () => {
-    tray?.popUpContextMenu();
+    togglePopupWindow();
   });
   refreshTray();
 }
@@ -338,7 +295,7 @@ function createWindow(): void {
     minWidth: 1180,
     minHeight: 760,
     title: "ClearTone",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#03030a",
     icon: existsSync(windowIconPath) ? windowIconPath : undefined,
     webPreferences: {
       preload: preloadPath
@@ -357,7 +314,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  if (!appSettings.trayOnlyMode) {
+    createWindow();
+  }
   createTray();
   if (process.platform === "darwin" && existsSync(createWindowIconPath())) {
     app.dock?.setIcon(createWindowIconPath());
@@ -400,4 +359,40 @@ ipcMain.handle("engine:stopProcessing", async () => {
 
 ipcMain.handle("engine:setStrength", async (_event, strength: number) => {
   sendCommand({ type: "setStrength", strength: normalizeStrength(strength) });
+});
+
+ipcMain.handle("tray:resize", async (_event, height: number) => {
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    const [width] = popupWindow.getSize();
+    popupWindow.setContentSize(width, Math.max(220, Math.round(height)));
+  }
+});
+
+function pushSettings(): void {
+  popupWindow?.webContents.send("app:settings", appSettings);
+}
+
+ipcMain.handle("app:showMainWindow", async () => {
+  ensureWindow();
+});
+
+ipcMain.handle("app:quit", async () => {
+  app.quit();
+});
+
+ipcMain.handle("app:getSettings", async () => {
+  return appSettings;
+});
+
+ipcMain.handle("app:setTrayOnlyMode", async (_event, enabled: boolean) => {
+  appSettings = { ...appSettings, trayOnlyMode: enabled };
+  saveSettings(appSettings);
+
+  if (enabled) {
+    mainWindow?.hide();
+  } else {
+    ensureWindow();
+  }
+
+  pushSettings();
 });

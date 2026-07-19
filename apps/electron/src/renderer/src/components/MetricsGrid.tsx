@@ -1,6 +1,6 @@
 import type { EngineSnapshot } from "@contracts";
+import { cn } from "../lib/utils";
 import { formatLatency, formatPercent, formatRms, phaseLabels } from "../utils/engineUi";
-import { Card } from "./ui/card";
 
 type Variant = "app" | "tray";
 
@@ -41,15 +41,17 @@ export function MetricsGrid({ snapshot, loading, variant }: Props) {
 
   if (variant === "tray") {
     return (
-      <section className="divide-y divide-border/40">
-        {metrics.map((metric) => (
-          <div key={metric.label} className="flex items-center justify-between gap-3 py-2">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {metric.label}
-            </div>
-            <div className="font-mono text-sm font-semibold tabular-nums text-foreground">
-              {metric.value}
-            </div>
+      <section className="flex flex-col">
+        {metrics.map((metric, index) => (
+          <div
+            key={metric.label}
+            className={cn(
+              "flex items-center justify-between py-2",
+              index !== metrics.length - 1 && "border-b border-white/8"
+            )}
+          >
+            <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{metric.label}</span>
+            <span className="font-mono text-[13px] font-semibold tabular-nums text-white">{metric.value}</span>
           </div>
         ))}
       </section>
@@ -57,18 +59,16 @@ export function MetricsGrid({ snapshot, loading, variant }: Props) {
   }
 
   return (
-    <section
-      className={
-        "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      }
-    >
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {metrics.map((metric) => (
-        <Card key={metric.label} className="p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {metric.label}
-          </div>
-          <div className="mt-1 text-xl font-semibold">{metric.value}</div>
-        </Card>
+        <article
+          key={metric.label}
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-card/80 to-card/40 p-5 backdrop-blur-xl transition-all duration-300 hover:shadow-(--card-glow-hover)"
+        >
+          <div className="absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-primary/30 to-transparent" />
+          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{metric.label}</div>
+          <div className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{metric.value}</div>
+        </article>
       ))}
     </section>
   );

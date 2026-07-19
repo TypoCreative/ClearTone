@@ -6,13 +6,16 @@ type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructiv
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
 const baseClassName =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background";
 
 const variantClassNames: Record<ButtonVariant, string> = {
-  default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
-  secondary: "border border-border/60 bg-card/40 text-foreground shadow-sm backdrop-blur-md hover:bg-card/55",
-  outline: "border border-border/60 bg-background/30 text-foreground backdrop-blur-md hover:bg-card/40",
-  ghost: "text-foreground hover:bg-card/40 hover:text-foreground",
+  default:
+    "relative overflow-hidden bg-linear-to-r from-primary to-cyan-300 text-primary-foreground shadow-(--glow-primary) hover:shadow-(--glow-primary-hover) hover:brightness-110",
+  secondary:
+    "border border-border/60 bg-card/50 text-foreground shadow-sm backdrop-blur-md hover:border-primary/30 hover:bg-card/65",
+  outline:
+    "border border-border/60 bg-background/40 text-foreground backdrop-blur-md hover:bg-card/50 hover:border-primary/30",
+  ghost: "text-foreground hover:bg-card/50 hover:text-foreground",
   destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
 };
 
