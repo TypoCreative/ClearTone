@@ -1,8 +1,8 @@
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
-import { DeviceSelect } from "../components/DeviceSelect";
 import { MetricsGrid } from "../components/MetricsGrid";
 import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
+import { TrayDeviceSelect } from "../components/TrayDeviceSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
 import { deriveControlState, phaseLabels } from "../utils/engineUi";
@@ -26,10 +26,10 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
   );
 
   return (
-    <main className="bg-transparent p-2 text-foreground">
-      <div className="flex flex-col gap-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 p-3">
+    <main className="rounded-[24px] bg-black p-3 text-foreground">
+      <div className="flex flex-col gap-3">
+        <Card className="border-white/12 bg-white/8 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-2">
               <CardTitle className="text-base">ClearTone</CardTitle>
               <span className={statusClassName}>{statusLabel}</span>
@@ -43,30 +43,28 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
           </CardHeader>
         </Card>
 
-        <Card>
-          <CardContent className="space-y-2 p-3">
-            <DeviceSelect
+        <Card className="border-white/12 bg-white/8 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <CardContent className="space-y-3 p-4">
+            <TrayDeviceSelect
               snapshot={snapshot}
-              selectedInput={selectedInput}
               value={inputControlValue}
               disabled={snapshot.inputs.length === 0}
-              variant="tray"
             />
             <StrengthSlider snapshot={snapshot} variant="tray" />
           </CardContent>
         </Card>
 
         {snapshot.lastError ? (
-          <Card className="border-destructive/30 bg-destructive/10">
-            <CardHeader className="p-3 pb-2">
+          <Card className="border-destructive/30 bg-destructive/12 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm">Engine Error</CardTitle>
             </CardHeader>
-            <CardContent className="p-3 pt-0 text-sm">{snapshot.lastError}</CardContent>
+            <CardContent className="p-4 pt-0 text-sm">{snapshot.lastError}</CardContent>
           </Card>
         ) : null}
 
-        <Card>
-          <CardContent className="p-3">
+        <Card className="border-white/12 bg-white/8 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <CardContent className="p-4">
             <MetricsGrid snapshot={snapshot} loading={loading} variant="tray" />
           </CardContent>
         </Card>

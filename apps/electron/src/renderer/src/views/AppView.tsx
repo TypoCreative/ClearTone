@@ -1,5 +1,5 @@
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
-import { DeviceSelect } from "../components/DeviceSelect";
+import { AppDeviceSelect } from "../components/AppDeviceSelect";
 import { MetricsGrid } from "../components/MetricsGrid";
 import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
@@ -49,7 +49,7 @@ export function AppView({ snapshot, loading, selectedInput }: Props) {
               <CardDescription>Choose input and tune denoise intensity.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <DeviceSelect
+              <AppDeviceSelect
                 snapshot={snapshot}
                 selectedInput={selectedInput}
                 value={inputControlValue}

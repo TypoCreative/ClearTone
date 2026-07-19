@@ -39,22 +39,35 @@ function buildMetrics(snapshot: EngineSnapshot, loading: boolean, variant: Varia
 export function MetricsGrid({ snapshot, loading, variant }: Props) {
   const metrics = buildMetrics(snapshot, loading, variant);
 
+  if (variant === "tray") {
+    return (
+      <section className="divide-y divide-border/40">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="flex items-center justify-between gap-3 py-2">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {metric.label}
+            </div>
+            <div className="font-mono text-sm font-semibold tabular-nums text-foreground">
+              {metric.value}
+            </div>
+          </div>
+        ))}
+      </section>
+    );
+  }
+
   return (
     <section
       className={
-        variant === "tray"
-          ? "grid grid-cols-2 gap-2"
-          : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       }
     >
       {metrics.map((metric) => (
-        <Card key={metric.label} className={variant === "tray" ? "p-3" : "p-4"}>
+        <Card key={metric.label} className="p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {metric.label}
           </div>
-          <div className={variant === "tray" ? "mt-1 text-base font-semibold" : "mt-1 text-xl font-semibold"}>
-            {metric.value}
-          </div>
+          <div className="mt-1 text-xl font-semibold">{metric.value}</div>
         </Card>
       ))}
     </section>

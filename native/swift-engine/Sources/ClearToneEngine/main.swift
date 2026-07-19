@@ -56,6 +56,8 @@ final class EngineRuntime: @unchecked Sendable {
     )
 
     private var processingTimer: DispatchSourceTimer?
+    private var audioListenersInstalled = false
+    private var isShuttingDown = false
     private var snapshot = EngineSnapshot(
         phase: "booting",
         permission: "unknown",
@@ -85,20 +87,7 @@ final class EngineRuntime: @unchecked Sendable {
     }
 
     deinit {
-        var defaultInputAddress = self.defaultInputAddress
-        var devicesAddress = self.devicesAddress
-        AudioObjectRemovePropertyListenerBlock(
-            systemObjectID,
-            &defaultInputAddress,
-            DispatchQueue.main,
-            defaultInputListener
-        )
-        AudioObjectRemovePropertyListenerBlock(
-            systemObjectID,
-            &devicesAddress,
-            DispatchQueue.main,
-            devicesListener
-        )
+        cleanupResources()
     }
 
     private lazy var defaultInputListener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
@@ -158,6 +147,10 @@ final class EngineRuntime: @unchecked Sendable {
     }
 
     private func installAudioListeners() {
+        guard !audioListenersInstalled else {
+            return
+        }
+
         var defaultInputAddress = self.defaultInputAddress
         var devicesAddress = self.devicesAddress
         AudioObjectAddPropertyListenerBlock(
@@ -172,6 +165,43 @@ final class EngineRuntime: @unchecked Sendable {
             DispatchQueue.main,
             devicesListener
         )
+        audioListenersInstalled = true
+    }
+
+    private func uninstallAudioListeners() {
+        guard audioListenersInstalled else {
+            return
+        }
+
+        var defaultInputAddress = self.defaultInputAddress
+        var devicesAddress = self.devicesAddress
+        AudioObjectRemovePropertyListenerBlock(
+            systemObjectID,
+            &defaultInputAddress,
+            DispatchQueue.main,
+            defaultInputListener
+        )
+        AudioObjectRemovePropertyListenerBlock(
+            systemObjectID,
+            &devicesAddress,
+            DispatchQueue.main,
+            devicesListener
+        )
+        audioListenersInstalled = false
+    }
+
+    private func cleanupResources() {
+        stopTimer()
+        uninstallAudioListeners()
+    }
+
+    func prepareForTermination() {
+        guard !isShuttingDown else {
+            return
+        }
+
+        isShuttingDown = true
+        cleanupResources()
     }
 
     private func handleAudioEnvironmentChange(reason: String) {
@@ -342,7 +372,7 @@ final class EngineRuntime: @unchecked Sendable {
         emitSnapshot()
 
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-        timer.schedule(deadline: .now() + .milliseconds(180), repeating: .milliseconds(400))
+        timer.schedule(deadline: .now() + .milliseconds(250), repeating: .milliseconds(700))
         timer.setEventHandler { [weak self] in
             self?.tickProcessing()
         }
@@ -355,7 +385,7 @@ final class EngineRuntime: @unchecked Sendable {
             return
         }
 
-        snapshot.metrics.framesProcessed += 480
+        snapshot.metrics.framesProcessed += 840
         snapshot.metrics.inputRms = Double.random(in: 0.14...0.78)
         snapshot.metrics.outputRms = max(
             0,
@@ -439,16 +469,22 @@ final class InputBridge: @unchecked Sendable {
 
 final class EngineApplication {
     private let inputBridge: InputBridge
+    private let runtime: EngineRuntime
 
     init() {
-        let runtime = EngineRuntime()
+        runtime = EngineRuntime()
         inputBridge = InputBridge(runtime: runtime)
     }
 
     func run() -> Never {
-        FileHandle.standardInput.readabilityHandler = { [inputBridge] handle in
+        FileHandle.standardInput.readabilityHandler = { [inputBridge, runtime] handle in
             let data = handle.availableData
             guard !data.isEmpty else {
+                FileHandle.standardInput.readabilityHandler = nil
+                DispatchQueue.main.async {
+                    runtime.prepareForTermination()
+                    exit(EXIT_SUCCESS)
+                }
                 return
             }
 

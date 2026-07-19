@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "dist:mac": "electron-vite build && electron-builder --config electron-builder.yml --mac --publish never",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
@@ -29,7 +30,8 @@
     "@vitejs/plugin-react": "^5.0.2",
     "@tailwindcss/postcss": "^4.1.12",
     "autoprefixer": "^10.4.21",
-    "electron": "^37.2.6",
+    "electron": "37.10.3",
+    "electron-builder": "^26.15.6",
     "electron-vite": "^4.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.12",

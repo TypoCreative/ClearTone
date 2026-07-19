@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   ipcMain,
+  Menu,
   Tray,
   nativeImage,
   screen
@@ -78,8 +79,8 @@ function ensurePopupWindow(): BrowserWindow {
   }
 
   popupWindow = new BrowserWindow({
-    width: 360,
-    height: 360,
+    width: 340,
+    height: 320,
     frame: false,
     resizable: false,
     show: false,
@@ -90,7 +91,8 @@ function ensurePopupWindow(): BrowserWindow {
     skipTaskbar: true,
     alwaysOnTop: true,
     title: "ClearTone Quick Controls",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#00000000",
+    transparent: true,
     icon: existsSync(createWindowIconPath()) ? createWindowIconPath() : undefined,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js")
@@ -106,11 +108,9 @@ function ensurePopupWindow(): BrowserWindow {
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    void popupWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}#tray-popup`);
+    void popupWindow.loadURL(new URL("tray.html", process.env.ELECTRON_RENDERER_URL).toString());
   } else {
-    void popupWindow.loadFile(join(__dirname, "../renderer/index.html"), {
-      hash: "tray-popup"
-    });
+    void popupWindow.loadFile(join(__dirname, "../renderer/tray.html"));
   }
 
   return popupWindow;
@@ -170,8 +170,50 @@ function refreshTray(): void {
   const canStop =
     engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
 
+  const deviceItems = engineSnapshot.inputs.length
+    ? [
+        {
+          label: "Follow System Input",
+          type: "radio" as const,
+          checked: engineSnapshot.followSystemInput,
+          click: () => {
+            sendCommand({ type: "followSystemInput" });
+          }
+        },
+        { type: "separator" as const },
+        ...engineSnapshot.inputs.map((input) => ({
+          label: input.name,
+          type: "radio" as const,
+          checked: !engineSnapshot.followSystemInput && input.id === engineSnapshot.selectedInputId,
+          click: () => {
+            sendCommand({ type: "selectInput", inputId: input.id });
+          }
+        }))
+      ]
+    : [{ label: "No microphone devices", enabled: false }]
+
   tray.setToolTip(`ClearTone · ${canStop ? "On" : "Off"}`);
-  tray.setContextMenu(null);
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: `Status: ${canStop ? "On" : "Off"}`,
+        enabled: false
+      },
+      { type: "separator" },
+      {
+        label: "Show ClearTone",
+        click: () => {
+          ensureWindow();
+        }
+      },
+      {
+        label: "Quit",
+        click: () => {
+          app.quit();
+        }
+      }
+    ])
+  );
 }
 
 function createTray(): void {
@@ -185,7 +227,7 @@ function createTray(): void {
     togglePopupWindow();
   });
   tray.on("right-click", () => {
-    togglePopupWindow();
+    tray?.popUpContextMenu();
   });
   refreshTray();
 }
@@ -234,10 +276,25 @@ function handleEngineLine(line: string): void {
 }
 
 function bootNativeEngine(): void {
-  nativeEngine = spawn("xcrun", ["swift", "run", "--disable-sandbox", "ClearToneEngine"], {
-    cwd: getNativeProjectPath(),
-    stdio: ["pipe", "pipe", "pipe"]
-  });
+  if (app.isPackaged) {
+    const nativeEnginePath = join(process.resourcesPath, "native", "ClearToneEngine");
+    if (!existsSync(nativeEnginePath)) {
+      pushSnapshot({
+        ...engineSnapshot,
+        phase: "error",
+        lastError: `Native engine binary not found at ${nativeEnginePath}.`,
+        statusMessage: "Bridge missing"
+      });
+      return;
+    }
+
+    nativeEngine = spawn(nativeEnginePath, [], { stdio: ["pipe", "pipe", "pipe"] });
+  } else {
+    nativeEngine = spawn("xcrun", ["swift", "run", "--disable-sandbox", "ClearToneEngine"], {
+      cwd: getNativeProjectPath(),
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+  }
 
   nativeEngine.stdout.on("data", (chunk: Buffer) => {
     stdoutBuffer += chunk.toString("utf8");
