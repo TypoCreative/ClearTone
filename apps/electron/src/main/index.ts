@@ -36,6 +36,8 @@ function getNativeProjectPath(): string {
 
 function resolveAssetPath(fileName: string): string {
   const candidates = [
+    // Packaged app: assets copied via electron-builder extraResources
+    join(process.resourcesPath, "assets", fileName),
     resolve(app.getAppPath(), "src/assets", fileName),
     resolve(app.getAppPath(), "../src/assets", fileName),
     resolve(process.cwd(), "apps/electron/src/assets", fileName)
@@ -179,7 +181,13 @@ function createTray(): void {
     return;
   }
 
-  tray = new Tray(createTrayImage());
+  const trayImage = createTrayImage();
+  if (trayImage.isEmpty()) {
+    console.error("[cleartone:tray] tray icon missing; skipping tray creation");
+    return;
+  }
+
+  tray = new Tray(trayImage);
   tray.on("click", () => {
     togglePopupWindow();
   });

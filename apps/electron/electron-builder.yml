@@ -1,9 +1,11 @@
 appId: com.cleartone.app
 productName: ClearTone
+executableName: ClearTone
 artifactName: ${productName}-${version}-mac-${arch}.${ext}
 
 directories:
   output: dist
+  buildResources: build
 
 files:
   - out/**
@@ -14,10 +16,16 @@ asar: true
 extraResources:
   - from: resources/native
     to: native
+  - from: src/assets
+    to: assets
 
 mac:
+  icon: build/icon.icns
   category: public.app-category.utilities
   target:
     - dmg
+  extendInfo:
+    CFBundleName: ClearTone
+    CFBundleDisplayName: ClearTone
 
 publish: []
