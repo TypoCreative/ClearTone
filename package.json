@@ -1,6 +1,6 @@
 {
   "name": "cleartone",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "workspaces": [
     "apps",
@@ -12,5 +12,11 @@
     "typecheck": "npm --workspace packages/contracts run build && npm --workspace apps run typecheck",
     "build:native": "cd native/swift-engine && swift build --disable-sandbox",
     "dev:native": "cd native/swift-engine && swift run --disable-sandbox ClearToneEngine"
+  },
+  "allowScripts": {
+    "electron@43.1.1": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true
   }
 }
