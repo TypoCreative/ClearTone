@@ -11,7 +11,9 @@ struct AudioInputDevice: Codable {
 
 struct EngineMetrics: Codable {
     var framesProcessed: Int
-    var inputLevel: Double
+    var inputRms: Double
+    var outputRms: Double
+    var noiseReductionPercent: Double
     var estimatedLatencyMs: Double
 }
 
@@ -66,7 +68,9 @@ final class EngineRuntime: @unchecked Sendable {
         lastError: nil,
         metrics: EngineMetrics(
             framesProcessed: 0,
-            inputLevel: 0,
+            inputRms: 0,
+            outputRms: 0,
+            noiseReductionPercent: 0,
             estimatedLatencyMs: 0
         )
     )
@@ -331,7 +335,9 @@ final class EngineRuntime: @unchecked Sendable {
         snapshot.statusMessage = "Processing microphone input through the native engine"
         snapshot.lastError = nil
         snapshot.metrics.framesProcessed = 0
-        snapshot.metrics.inputLevel = 0.12
+        snapshot.metrics.inputRms = 0.12
+        snapshot.metrics.outputRms = 0.1
+        snapshot.metrics.noiseReductionPercent = snapshot.strength * 100
         snapshot.metrics.estimatedLatencyMs = max(10, 18 - snapshot.strength * 6)
         emitSnapshot()
 
@@ -350,7 +356,15 @@ final class EngineRuntime: @unchecked Sendable {
         }
 
         snapshot.metrics.framesProcessed += 480
-        snapshot.metrics.inputLevel = Double.random(in: 0.14...0.78)
+        snapshot.metrics.inputRms = Double.random(in: 0.14...0.78)
+        snapshot.metrics.outputRms = max(
+            0,
+            snapshot.metrics.inputRms - (Double.random(in: 0.02...0.18) * snapshot.strength)
+        )
+        snapshot.metrics.noiseReductionPercent = max(
+            0,
+            min(100, (snapshot.metrics.inputRms - snapshot.metrics.outputRms) * 140)
+        )
         snapshot.metrics.estimatedLatencyMs = max(10, 18 - snapshot.strength * 6)
         snapshot.statusMessage = "Processing microphone input through the native engine"
         emitSnapshot()
@@ -366,7 +380,9 @@ final class EngineRuntime: @unchecked Sendable {
         refreshAudioEnvironment(reason: "Stop requested", forceSystemSelection: snapshot.followSystemInput)
         snapshot.phase = "idle"
         snapshot.statusMessage = idleStatusMessage()
-        snapshot.metrics.inputLevel = 0
+        snapshot.metrics.inputRms = 0
+        snapshot.metrics.outputRms = 0
+        snapshot.metrics.noiseReductionPercent = 0
         emitSnapshot()
     }
 

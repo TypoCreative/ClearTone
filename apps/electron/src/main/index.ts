@@ -2,7 +2,6 @@ import {
   app,
   BrowserWindow,
   ipcMain,
-  Menu,
   Tray,
   nativeImage,
   screen
@@ -79,8 +78,8 @@ function ensurePopupWindow(): BrowserWindow {
   }
 
   popupWindow = new BrowserWindow({
-    width: 340,
-    height: 320,
+    width: 360,
+    height: 360,
     frame: false,
     resizable: false,
     show: false,
@@ -171,50 +170,8 @@ function refreshTray(): void {
   const canStop =
     engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
 
-  const deviceItems = engineSnapshot.inputs.length
-    ? [
-        {
-          label: "Follow System Input",
-          type: "radio" as const,
-          checked: engineSnapshot.followSystemInput,
-          click: () => {
-            sendCommand({ type: "followSystemInput" });
-          }
-        },
-        { type: "separator" as const },
-        ...engineSnapshot.inputs.map((input) => ({
-          label: input.name,
-          type: "radio" as const,
-          checked: !engineSnapshot.followSystemInput && input.id === engineSnapshot.selectedInputId,
-          click: () => {
-            sendCommand({ type: "selectInput", inputId: input.id });
-          }
-        }))
-      ]
-    : [{ label: "No microphone devices", enabled: false }]
-
   tray.setToolTip(`ClearTone · ${canStop ? "On" : "Off"}`);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        label: `Status: ${canStop ? "On" : "Off"}`,
-        enabled: false
-      },
-      { type: "separator" },
-      {
-        label: "Show ClearTone",
-        click: () => {
-          ensureWindow();
-        }
-      },
-      {
-        label: "Quit",
-        click: () => {
-          app.quit();
-        }
-      }
-    ])
-  );
+  tray.setContextMenu(null);
 }
 
 function createTray(): void {
@@ -228,7 +185,7 @@ function createTray(): void {
     togglePopupWindow();
   });
   tray.on("right-click", () => {
-    tray?.popUpContextMenu();
+    togglePopupWindow();
   });
   refreshTray();
 }

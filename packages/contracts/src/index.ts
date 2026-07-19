@@ -22,7 +22,9 @@ export interface AudioInputDevice {
 
 export interface EngineMetrics {
   framesProcessed: number;
-  inputLevel: number;
+  inputRms: number;
+  outputRms: number;
+  noiseReductionPercent: number;
   estimatedLatencyMs: number;
 }
 
@@ -61,7 +63,9 @@ export function createInitialSnapshot(): EngineSnapshot {
     lastError: null,
     metrics: {
       framesProcessed: 0,
-      inputLevel: 0,
+      inputRms: 0,
+      outputRms: 0,
+      noiseReductionPercent: 0,
       estimatedLatencyMs: 0
     }
   };
