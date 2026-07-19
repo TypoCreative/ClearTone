@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["node", "electron-vite/node"],
+    "paths": {
+      "@contracts": ["../../packages/contracts/src"]
+    }
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts"
+  ]
+}

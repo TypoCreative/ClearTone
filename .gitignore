@@ -1,0 +1,8 @@
+.DS_Store
+node_modules
+dist
+out
+.build
+.swiftpm
+apps/electron/out
+apps/electron/dist

@@ -1,0 +1,3 @@
+# screencapturekit
+
+Research notes.

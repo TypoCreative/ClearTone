@@ -1,0 +1,3 @@
+# electron-ipc
+
+Research notes.
