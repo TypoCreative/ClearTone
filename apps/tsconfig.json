@@ -1,11 +1,11 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "baseUrl": ".",
     "types": ["vite/client", "node", "electron-vite/node"],
     "paths": {
-      "@contracts": ["../../packages/contracts/src"]
+      "@contracts": ["../packages/contracts/src"]
     }
   },
   "include": ["src/renderer/src/**/*", "src/main/**/*.ts", "src/preload/**/*.ts"]

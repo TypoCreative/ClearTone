@@ -59,17 +59,17 @@ jobs:
           cd native/swift-engine
           swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}"
           BIN_PATH="$(swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}" --show-bin-path)"
-          mkdir -p ../../apps/electron/resources/native
-          cp "$BIN_PATH/ClearToneEngine" ../../apps/electron/resources/native/ClearToneEngine
-          file ../../apps/electron/resources/native/ClearToneEngine
+          mkdir -p ../../apps/resources/native
+          cp "$BIN_PATH/ClearToneEngine" ../../apps/resources/native/ClearToneEngine
+          file ../../apps/resources/native/ClearToneEngine
 
       - name: Build DMG
-        run: npm --workspace apps/electron run dist:mac -- --${{ matrix.arch }}
+        run: npm --workspace apps run dist:mac -- --${{ matrix.arch }}
 
       - name: Upload DMG to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v3
         with:
-          files: apps/electron/dist/*.dmg
+          files: apps/dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

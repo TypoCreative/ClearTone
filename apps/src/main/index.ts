@@ -31,7 +31,7 @@ app.commandLine.appendSwitch("disable-gpu");
 app.disableHardwareAcceleration();
 
 function getNativeProjectPath(): string {
-  return resolve(app.getAppPath(), "../../native/swift-engine");
+  return resolve(app.getAppPath(), "../native/swift-engine");
 }
 
 function resolveAssetPath(fileName: string): string {
@@ -40,7 +40,7 @@ function resolveAssetPath(fileName: string): string {
     join(process.resourcesPath, "assets", fileName),
     resolve(app.getAppPath(), "src/assets", fileName),
     resolve(app.getAppPath(), "../src/assets", fileName),
-    resolve(process.cwd(), "apps/electron/src/assets", fileName)
+    resolve(process.cwd(), "apps/src/assets", fileName)
   ];
 
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];

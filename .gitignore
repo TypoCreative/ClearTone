@@ -2,6 +2,7 @@
 node_modules
 dist
 out
+.vite
 .build
 .swiftpm
 apps/electron/out

@@ -3,13 +3,13 @@
   "version": "0.1.1",
   "private": true,
   "workspaces": [
-    "apps/electron",
+    "apps",
     "packages/contracts"
   ],
   "scripts": {
-    "dev": "npm --workspace apps/electron run dev",
-    "build": "npm --workspace packages/contracts run build && npm --workspace apps/electron run build",
-    "typecheck": "npm --workspace packages/contracts run build && npm --workspace apps/electron run typecheck",
+    "dev": "npm --workspace apps run dev",
+    "build": "npm --workspace packages/contracts run build && npm --workspace apps run build",
+    "typecheck": "npm --workspace packages/contracts run build && npm --workspace apps run typecheck",
     "build:native": "cd native/swift-engine && swift build --disable-sandbox",
     "dev:native": "cd native/swift-engine && swift run --disable-sandbox ClearToneEngine"
   }
