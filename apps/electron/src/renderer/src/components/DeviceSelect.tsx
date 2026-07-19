@@ -14,9 +14,10 @@ type Props = {
   selectedInput: AudioInputDevice | undefined;
   value: string;
   disabled: boolean;
+  variant?: "app" | "tray";
 };
 
-export function DeviceSelect({ snapshot, selectedInput, value, disabled }: Props) {
+export function DeviceSelect({ snapshot, selectedInput, value, disabled, variant = "app" }: Props) {
   const handleChange = (nextValue: string) => {
     if (nextValue === "__follow_system__") {
       void window.clearTone.followSystemInput();
@@ -26,14 +27,16 @@ export function DeviceSelect({ snapshot, selectedInput, value, disabled }: Props
     void window.clearTone.selectInput(nextValue);
   };
 
+  const label = variant === "tray" ? "Mic" : "Select Device";
+
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Select Device
+    <div className={variant === "tray" ? "space-y-1.5" : "space-y-2"}>
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
       </div>
       <Select value={value} onValueChange={handleChange} disabled={disabled}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select input" />
+        <SelectTrigger className={variant === "tray" ? "h-9 text-xs" : ""}>
+          <SelectValue placeholder={variant === "tray" ? "Input" : "Select input"} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__follow_system__">Follow system input</SelectItem>
@@ -46,7 +49,9 @@ export function DeviceSelect({ snapshot, selectedInput, value, disabled }: Props
           ))}
         </SelectContent>
       </Select>
-      <div className="text-xs text-muted-foreground">{formatDeviceMode(snapshot, selectedInput)}</div>
+      {variant === "app" ? (
+        <div className="text-xs text-muted-foreground">{formatDeviceMode(snapshot, selectedInput)}</div>
+      ) : null}
     </div>
   );
 }

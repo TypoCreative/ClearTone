@@ -17,21 +17,21 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
   const { canStart, canStop, inputControlValue } = deriveControlState(snapshot);
   const statusLabel = loading ? "Connecting" : phaseLabels[snapshot.phase];
   const statusClassName = cn(
-    "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+    "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium backdrop-blur-md",
     snapshot.phase === "processing"
       ? "border-primary/30 bg-primary/10 text-primary"
       : snapshot.phase === "error"
         ? "border-destructive/30 bg-destructive/10 text-destructive"
-        : "border-border bg-muted text-foreground"
+        : "border-border/60 bg-card/40 text-foreground"
   );
 
   return (
-    <main className="bg-background p-2 text-foreground">
+    <main className="bg-transparent p-2 text-foreground">
       <div className="flex flex-col gap-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 p-3">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-base">ClearTone Mini</CardTitle>
+              <CardTitle className="text-base">ClearTone</CardTitle>
               <span className={statusClassName}>{statusLabel}</span>
             </div>
             <StartStopControls
@@ -50,8 +50,9 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
               selectedInput={selectedInput}
               value={inputControlValue}
               disabled={snapshot.inputs.length === 0}
+              variant="tray"
             />
-            <StrengthSlider snapshot={snapshot} />
+            <StrengthSlider snapshot={snapshot} variant="tray" />
           </CardContent>
         </Card>
 

@@ -17,8 +17,8 @@ export function AppView({ snapshot, loading, selectedInput }: Props) {
   const { canStart, canStop, inputControlValue } = deriveControlState(snapshot);
 
   return (
-    <main className="min-h-full bg-background p-6 text-foreground">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+    <main className="flex min-h-full items-center justify-center p-6 text-foreground">
+      <div className="flex w-full max-w-4xl flex-col gap-4">
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div className="space-y-1">

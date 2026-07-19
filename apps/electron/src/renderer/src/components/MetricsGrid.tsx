@@ -18,10 +18,10 @@ type Metric = {
 function buildMetrics(snapshot: EngineSnapshot, loading: boolean, variant: Variant): Metric[] {
   if (variant === "tray") {
     return [
-      { label: "Input RMS", value: formatRms(snapshot.metrics.inputRms) },
-      { label: "Output RMS", value: formatRms(snapshot.metrics.outputRms) },
-      { label: "Noise Reduction", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
-      { label: "Latency", value: formatLatency(snapshot.metrics.estimatedLatencyMs) }
+      { label: "In", value: formatRms(snapshot.metrics.inputRms) },
+      { label: "Out", value: formatRms(snapshot.metrics.outputRms) },
+      { label: "NR", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
+      { label: "Lat", value: formatLatency(snapshot.metrics.estimatedLatencyMs) }
     ];
   }
 
@@ -48,11 +48,11 @@ export function MetricsGrid({ snapshot, loading, variant }: Props) {
       }
     >
       {metrics.map((metric) => (
-        <Card key={metric.label} className="p-4">
+        <Card key={metric.label} className={variant === "tray" ? "p-3" : "p-4"}>
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {metric.label}
           </div>
-          <div className={variant === "tray" ? "mt-1 text-lg font-semibold" : "mt-1 text-xl font-semibold"}>
+          <div className={variant === "tray" ? "mt-1 text-base font-semibold" : "mt-1 text-xl font-semibold"}>
             {metric.value}
           </div>
         </Card>
