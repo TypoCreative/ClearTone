@@ -522,6 +522,51 @@
       gap: 10px;
     }
 
+    .accordion-body ol {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .option-block {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: grid;
+      gap: 10px;
+    }
+
+    .option-block h4 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .option-block p {
+      margin: 0;
+      color: var(--soft);
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+
+    .code-block {
+      margin: 0;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: #d6e6ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     .download-actions {
       display: grid;
       grid-template-columns: 1fr;
@@ -684,7 +729,7 @@
           </div>
 
           <div class="get-started-grid">
-            <div class="card reveal">
+            <div class="card reveal" id="how-to-use">
               <h3>How to use</h3>
               <div class="accordion" role="region" aria-label="How to use steps">
                 <details class="accordion-item" open>
@@ -701,6 +746,41 @@
                 <details class="accordion-item">
                   <summary>
                     <span class="accordion-index">2</span>
+                    <span class="accordion-title">Open if macOS blocks it</span>
+                    <span class="accordion-arrow" aria-hidden="true"></span>
+                  </summary>
+                  <div class="accordion-body">
+                    <p>
+                      If macOS shows a warning that ClearTone cannot be opened because it is from an
+                      unidentified developer, use one of the options below.
+                    </p>
+
+                    <div class="option-block">
+                      <h4>Option A: Open Anyway From System Settings</h4>
+                      <p>Use this if you already tried to open the app once and macOS blocked it.</p>
+                      <ol>
+                        <li>Open System Settings.</li>
+                        <li>Go to Privacy &amp; Security.</li>
+                        <li>Scroll down until you find the message that ClearTone was blocked.</li>
+                        <li>Click Open Anyway.</li>
+                        <li>Confirm again if macOS asks for permission.</li>
+                      </ol>
+                    </div>
+
+                    <div class="option-block">
+                      <h4>Option B: Remove Quarantine From Terminal</h4>
+                      <p>
+                        Use this if the app was copied to the Applications folder and you want to remove
+                        the quarantine attribute manually.
+                      </p>
+                      <pre class="code-block"><code>sudo xattr -dr com.apple.quarantine /Applications/ClearTone.app</code></pre>
+                    </div>
+                  </div>
+                </details>
+
+                <details class="accordion-item">
+                  <summary>
+                    <span class="accordion-index">3</span>
                     <span class="accordion-title">Allow mic access</span>
                     <span class="accordion-arrow" aria-hidden="true"></span>
                   </summary>
@@ -711,7 +791,7 @@
 
                 <details class="accordion-item">
                   <summary>
-                    <span class="accordion-index">3</span>
+                    <span class="accordion-index">4</span>
                     <span class="accordion-title">Start + tune strength</span>
                     <span class="accordion-arrow" aria-hidden="true"></span>
                   </summary>

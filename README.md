@@ -1,4 +1,4 @@
-# VoiceAI
+# ClearTone
 
 Professional AI microphone for macOS.
 
@@ -6,7 +6,7 @@ Professional AI microphone for macOS.
 
 If macOS shows a warning that `ClearTone.app` cannot be opened because it is from an unidentified developer, use one of the options below.
 
-### Option B: Open Anyway From System Settings
+### Option A: Open Anyway From System Settings
 
 Use this if you already tried to open the app once and macOS blocked it.
 
@@ -16,7 +16,7 @@ Use this if you already tried to open the app once and macOS blocked it.
 4. Click `Open Anyway`.
 5. Confirm again if macOS asks for permission.
 
-### Option C: Remove Quarantine From Terminal
+### Option B: Remove Quarantine From Terminal
 
 Use this if the app was copied to the `Applications` folder and you want to remove the quarantine attribute manually.
 

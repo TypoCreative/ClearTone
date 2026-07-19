@@ -3,6 +3,8 @@ name: Build macOS DMG
 on:
   release:
     types: [published]
+  # Allows building from a branch without relying on a stale release tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -65,6 +67,7 @@ jobs:
         run: npm --workspace apps/electron run dist:mac -- --${{ matrix.arch }}
 
       - name: Upload DMG to Release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: apps/electron/dist/*.dmg
