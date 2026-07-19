@@ -15,10 +15,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-13
+          # macos-26 ships Xcode 26 (Swift 6.2+). Older runners default to Swift 5.10.
+          - os: macos-26
             arch: x64
-          - os: macos-14
+            swift_arch: x86_64
+          - os: macos-26
             arch: arm64
+            swift_arch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,18 +35,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Select Xcode with Swift 6.2+
+        run: |
+          xcode="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$xcode" ]; then
+            echo "::error::Xcode 26 (Swift 6.2) not found on the runner"
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          echo "Using $xcode"
+
       - name: Print macOS toolchain versions
         run: |
           sw_vers
           xcodebuild -version
           swift --version
+          head -n 1 native/swift-engine/Package.swift
 
       - name: Build native engine (release)
         run: |
           cd native/swift-engine
-          swift build -c release --disable-sandbox
+          swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}"
+          BIN_PATH="$(swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}" --show-bin-path)"
           mkdir -p ../../apps/electron/resources/native
-          cp .build/release/ClearToneEngine ../../apps/electron/resources/native/ClearToneEngine
+          cp "$BIN_PATH/ClearToneEngine" ../../apps/electron/resources/native/ClearToneEngine
+          file ../../apps/electron/resources/native/ClearToneEngine
 
       - name: Build DMG
         run: npm --workspace apps/electron run dist:mac -- --${{ matrix.arch }}
