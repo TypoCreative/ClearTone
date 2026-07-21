@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import { memo, useCallback, type ChangeEvent } from "react";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
@@ -11,17 +11,20 @@ type Props = {
   disabled: boolean;
 };
 
-export function AppDeviceSelect({ snapshot, selectedInput, value, disabled }: Props) {
-  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+export const AppDeviceSelect = memo(function AppDeviceSelect({
+  snapshot,
+  selectedInput,
+  value,
+  disabled,
+}: Props) {
+  const handleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const nextValue = event.target.value;
-
     if (nextValue === "__follow_system__") {
       void window.clearTone.followSystemInput();
       return;
     }
-
     void window.clearTone.selectInput(nextValue);
-  };
+  }, []);
 
   return (
     <div className="space-y-2">
@@ -52,4 +55,4 @@ export function AppDeviceSelect({ snapshot, selectedInput, value, disabled }: Pr
       <div className="text-xs text-muted-foreground">{formatDeviceMode(snapshot, selectedInput)}</div>
     </div>
   );
-}
+});

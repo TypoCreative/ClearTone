@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
 import { formatLatency, formatPercent, formatRms, phaseLabels } from "../utils/engineUi";
@@ -10,34 +11,27 @@ type Props = {
   variant: Variant;
 };
 
-type Metric = {
-  label: string;
-  value: string;
-};
+export const MetricsGrid = memo(function MetricsGrid({ snapshot, loading, variant }: Props) {
+  const metrics = useMemo(() => {
+    if (variant === "tray") {
+      return [
+        { label: "In", value: formatRms(snapshot.metrics.inputRms) },
+        { label: "Out", value: formatRms(snapshot.metrics.outputRms) },
+        { label: "NR", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
+        { label: "Lat", value: formatLatency(snapshot.metrics.estimatedLatencyMs) },
+      ];
+    }
 
-function buildMetrics(snapshot: EngineSnapshot, loading: boolean, variant: Variant): Metric[] {
-  if (variant === "tray") {
     return [
-      { label: "In", value: formatRms(snapshot.metrics.inputRms) },
-      { label: "Out", value: formatRms(snapshot.metrics.outputRms) },
-      { label: "NR", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
-      { label: "Lat", value: formatLatency(snapshot.metrics.estimatedLatencyMs) }
+      { label: "Status", value: loading ? "Connecting" : phaseLabels[snapshot.phase] },
+      { label: "Permission", value: snapshot.permission },
+      { label: "Frames", value: snapshot.metrics.framesProcessed.toLocaleString() },
+      { label: "Input RMS", value: formatRms(snapshot.metrics.inputRms) },
+      { label: "Output RMS", value: formatRms(snapshot.metrics.outputRms) },
+      { label: "Noise Reduction", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
+      { label: "Latency", value: formatLatency(snapshot.metrics.estimatedLatencyMs) },
     ];
-  }
-
-  return [
-    { label: "Status", value: loading ? "Connecting" : phaseLabels[snapshot.phase] },
-    { label: "Permission", value: snapshot.permission },
-    { label: "Frames", value: snapshot.metrics.framesProcessed.toLocaleString() },
-    { label: "Input RMS", value: formatRms(snapshot.metrics.inputRms) },
-    { label: "Output RMS", value: formatRms(snapshot.metrics.outputRms) },
-    { label: "Noise Reduction", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
-    { label: "Latency", value: formatLatency(snapshot.metrics.estimatedLatencyMs) }
-  ];
-}
-
-export function MetricsGrid({ snapshot, loading, variant }: Props) {
-  const metrics = buildMetrics(snapshot, loading, variant);
+  }, [snapshot, loading, variant]);
 
   if (variant === "tray") {
     return (
@@ -63,7 +57,7 @@ export function MetricsGrid({ snapshot, loading, variant }: Props) {
       {metrics.map((metric) => (
         <article
           key={metric.label}
-          className="relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-card/80 to-card/40 p-5 backdrop-blur-xl transition-all duration-300 hover:shadow-(--card-glow-hover)"
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-card/80 to-card/40 p-5 backdrop-blur-xl"
         >
           <div className="absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-primary/30 to-transparent" />
           <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{metric.label}</div>
@@ -72,4 +66,4 @@ export function MetricsGrid({ snapshot, loading, variant }: Props) {
       ))}
     </section>
   );
-}
+});

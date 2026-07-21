@@ -1,3 +1,4 @@
+import { memo, useCallback } from "react";
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
 import { formatDeviceMode } from "../utils/engineUi";
 import {
@@ -17,15 +18,20 @@ type Props = {
   variant?: "app" | "tray";
 };
 
-export function DeviceSelect({ snapshot, selectedInput, value, disabled, variant = "app" }: Props) {
-  const handleChange = (nextValue: string) => {
+export const DeviceSelect = memo(function DeviceSelect({
+  snapshot,
+  selectedInput,
+  value,
+  disabled,
+  variant = "app",
+}: Props) {
+  const handleChange = useCallback((nextValue: string) => {
     if (nextValue === "__follow_system__") {
       void window.clearTone.followSystemInput();
       return;
     }
-
     void window.clearTone.selectInput(nextValue);
-  };
+  }, []);
 
   const label = variant === "tray" ? "Mic" : "Select Device";
 
@@ -54,4 +60,4 @@ export function DeviceSelect({ snapshot, selectedInput, value, disabled, variant
       ) : null}
     </div>
   );
-}
+});

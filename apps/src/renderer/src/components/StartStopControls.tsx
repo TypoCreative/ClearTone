@@ -1,3 +1,4 @@
+import { memo, useCallback } from "react";
 import { LightningBoltIcon } from "@radix-ui/react-icons";
 import { cn } from "../lib/utils";
 
@@ -10,14 +11,32 @@ type Props = {
   variant: "app" | "tray" | "trayHeader";
 };
 
-export function StartStopControls({ canStart, canStop, mode = "dual", variant }: Props) {
+export const StartStopControls = memo(function StartStopControls({
+  canStart,
+  canStop,
+  mode = "dual",
+  variant,
+}: Props) {
   if (mode === "toggle") {
     const isActive = canStop;
     const label = isActive ? "Stop Processing" : "Start Processing";
     const disabled = isActive ? !canStop : !canStart;
-    const handler = isActive
-      ? () => void window.clearTone.stopProcessing()
-      : () => void window.clearTone.startProcessing();
+
+    const handleToggle = useCallback(() => {
+      if (isActive) {
+        void window.clearTone.stopProcessing();
+      } else {
+        void window.clearTone.startProcessing();
+      }
+    }, [isActive]);
+
+    const handleStart = useCallback(() => {
+      void window.clearTone.startProcessing();
+    }, []);
+
+    const handleStop = useCallback(() => {
+      void window.clearTone.stopProcessing();
+    }, []);
 
     if (variant === "trayHeader") {
       return (
@@ -30,7 +49,7 @@ export function StartStopControls({ canStart, canStop, mode = "dual", variant }:
               : "border-emerald-400/35 bg-linear-to-b from-emerald-400/85 to-emerald-500/80 text-emerald-950 shadow-[0_0_24px_rgba(52,211,153,0.28)] hover:shadow-[0_0_32px_rgba(52,211,153,0.38)] hover:from-emerald-300 hover:to-emerald-400"
           )}
           disabled={disabled}
-          onClick={handler}
+          onClick={handleToggle}
           type="button"
         >
           <span className="relative z-10">{label}</span>
@@ -49,7 +68,7 @@ export function StartStopControls({ canStart, canStop, mode = "dual", variant }:
               : "border-primary/30 bg-linear-to-r from-primary to-cyan-300 text-primary-foreground shadow-(--glow-primary) hover:shadow-(--glow-primary-hover) hover:brightness-110"
           )}
           disabled={disabled}
-          onClick={handler}
+          onClick={handleToggle}
           type="button"
         >
           <LightningBoltIcon className="h-5 w-5" />
@@ -65,7 +84,7 @@ export function StartStopControls({ canStart, canStop, mode = "dual", variant }:
           size={variant === "tray" ? "sm" : "default"}
           className={cn(variant === "tray" ? "h-9 w-full justify-center text-sm" : "")}
           disabled={disabled}
-          onClick={handler}
+          onClick={handleToggle}
         >
           {label}
         </Button>
@@ -83,4 +102,4 @@ export function StartStopControls({ canStart, canStop, mode = "dual", variant }:
       </Button>
     </div>
   );
-}
+});

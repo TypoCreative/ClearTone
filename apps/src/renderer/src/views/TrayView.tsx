@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
 import { MetricsGrid } from "../components/MetricsGrid";
 import { StartStopControls } from "../components/StartStopControls";
@@ -14,8 +14,10 @@ type Props = {
   selectedInput: AudioInputDevice | undefined;
 };
 
-export function TrayView({ snapshot, loading, selectedInput }: Props) {
-  const { canStart, canStop, inputControlValue } = deriveControlState(snapshot);
+export const TrayView = memo(function TrayView({ snapshot, loading, selectedInput }: Props) {
+  const controls = useMemo(() => deriveControlState(snapshot), [snapshot]);
+  const { canStart, canStop, inputControlValue } = controls;
+
   const statusLabel = loading ? "Connecting" : phaseLabels[snapshot.phase];
   const deviceModeLabel = formatDeviceMode(snapshot, selectedInput);
   const isProcessing = snapshot.phase === "processing";
@@ -41,6 +43,11 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
       mounted = false;
       unsubscribe();
     };
+  }, []);
+
+  const handleTrayOnlyChange = useCallback((checked: boolean) => {
+    setTrayOnlyMode(checked);
+    void window.clearTone.setTrayOnlyMode(checked);
   }, []);
 
   const statusClassName = cn(
@@ -134,10 +141,7 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
           <span className="text-[11px] font-medium text-slate-300">Tray only mode</span>
           <Switch
             checked={trayOnlyMode}
-            onCheckedChange={(checked) => {
-              setTrayOnlyMode(checked);
-              void window.clearTone.setTrayOnlyMode(checked);
-            }}
+            onCheckedChange={handleTrayOnlyChange}
           />
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -163,4 +167,4 @@ export function TrayView({ snapshot, loading, selectedInput }: Props) {
       </div>
     </main>
   );
-}
+});

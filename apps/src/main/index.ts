@@ -26,9 +26,9 @@ let stdoutBuffer = "";
 let engineSnapshot: EngineSnapshot = createInitialSnapshot();
 let appSettings = loadSettings();
 
+// Performance-critical: hardware acceleration must remain enabled.
+// Sandbox disabled for native engine subprocess; keep unless a tighter sandbox is configured.
 app.commandLine.appendSwitch("no-sandbox");
-app.commandLine.appendSwitch("disable-gpu");
-app.disableHardwareAcceleration();
 
 function getNativeProjectPath(): string {
   return resolve(app.getAppPath(), "../native/swift-engine");
@@ -199,8 +199,12 @@ function createTray(): void {
 
 function pushSnapshot(snapshot: EngineSnapshot): void {
   engineSnapshot = snapshot;
-  mainWindow?.webContents.send("engine:snapshot", engineSnapshot);
-  popupWindow?.webContents.send("engine:snapshot", engineSnapshot);
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    mainWindow.webContents.send("engine:snapshot", engineSnapshot);
+  }
+  if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
+    popupWindow.webContents.send("engine:snapshot", engineSnapshot);
+  }
   refreshTray();
 }
 

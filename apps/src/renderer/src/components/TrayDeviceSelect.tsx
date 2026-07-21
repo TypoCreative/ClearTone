@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import { memo, useCallback, type ChangeEvent } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
 
@@ -8,20 +8,22 @@ type Props = {
   disabled: boolean;
 };
 
-export function TrayDeviceSelect({ snapshot, value, disabled }: Props) {
+export const TrayDeviceSelect = memo(function TrayDeviceSelect({
+  snapshot,
+  value,
+  disabled,
+}: Props) {
   const systemInput = snapshot.inputs.find((input) => input.isDefault);
   const systemInputLabel = systemInput?.name ?? "System";
 
-  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+  const handleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const nextValue = event.target.value;
-
     if (nextValue === "__follow_system__") {
       void window.clearTone.followSystemInput();
       return;
     }
-
     void window.clearTone.selectInput(nextValue);
-  };
+  }, []);
 
   return (
     <div className="space-y-1.5">
@@ -46,4 +48,4 @@ export function TrayDeviceSelect({ snapshot, value, disabled }: Props) {
       </select>
     </div>
   );
-}
+});

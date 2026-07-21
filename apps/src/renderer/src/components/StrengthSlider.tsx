@@ -1,5 +1,4 @@
-import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { memo, useCallback } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
 import { formatPercent } from "../utils/engineUi";
@@ -9,24 +8,16 @@ type Props = {
   variant?: "app" | "tray";
 };
 
-export function StrengthSlider({ snapshot, variant = "app" }: Props) {
-  const externalStrengthValue = Math.round(snapshot.strength * 100);
-  const [strengthValue, setStrengthValue] = useState(externalStrengthValue);
+export const StrengthSlider = memo(function StrengthSlider({ snapshot, variant = "app" }: Props) {
+  const strengthPercent = Math.round(snapshot.strength * 100);
   const label = variant === "tray" ? "Strength" : "Denoise Strength";
 
-  const handleInput = (event: FormEvent<HTMLInputElement>) => {
-    setStrengthValue(Number(event.currentTarget.value));
-  };
-
-  const handleCommit = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = Number(event.target.value);
-    setStrengthValue(nextValue);
-    void window.clearTone.setStrength(nextValue / 100);
-  };
-
-  useEffect(() => {
-    setStrengthValue(externalStrengthValue);
-  }, [externalStrengthValue]);
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      void window.clearTone.setStrength(Number(event.target.value) / 100);
+    },
+    []
+  );
 
   return (
     <div className={variant === "tray" ? "space-y-1.5" : "space-y-2"}>
@@ -45,19 +36,18 @@ export function StrengthSlider({ snapshot, variant = "app" }: Props) {
             variant === "tray" ? "text-[12px] font-semibold text-white" : "text-sm font-semibold text-primary"
           )}
         >
-          {formatPercent(strengthValue / 100)}
+          {formatPercent(strengthPercent / 100)}
         </span>
       </div>
       <div className="flex items-center gap-3">
         <input
           type="range"
-          value={strengthValue}
+          value={strengthPercent}
           min={0}
           max={100}
           step={1}
-          onInput={handleInput}
-          onChange={handleCommit}
-          style={{ "--value-percent": `${strengthValue}%` } as React.CSSProperties}
+          onChange={handleChange}
+          style={{ "--value-percent": `${strengthPercent}%` } as React.CSSProperties}
           className={cn(
             "range-futuristic",
             variant === "tray" && "range-futuristic-sm"
@@ -66,4 +56,4 @@ export function StrengthSlider({ snapshot, variant = "app" }: Props) {
       </div>
     </div>
   );
-}
+});

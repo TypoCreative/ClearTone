@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import type { AudioInputDevice, EnginePhase, EngineSnapshot } from "@contracts";
 import { AppDeviceSelect } from "../components/AppDeviceSelect";
 import { MetricsGrid } from "../components/MetricsGrid";
@@ -14,7 +15,13 @@ type Props = {
   selectedInput: AudioInputDevice | undefined;
 };
 
-function StatusBadge({ phase, loading }: { phase: EnginePhase; loading: boolean }) {
+const StatusBadge = memo(function StatusBadge({
+  phase,
+  loading,
+}: {
+  phase: EnginePhase;
+  loading: boolean;
+}) {
   const isProcessing = phase === "processing";
   const isError = phase === "error";
   const label = loading ? "Connecting" : phaseLabels[phase];
@@ -40,10 +47,11 @@ function StatusBadge({ phase, loading }: { phase: EnginePhase; loading: boolean 
       {label}
     </div>
   );
-}
+});
 
-export function AppView({ snapshot, loading, selectedInput }: Props) {
-  const { canStart, canStop, inputControlValue } = deriveControlState(snapshot);
+export const AppView = memo(function AppView({ snapshot, loading, selectedInput }: Props) {
+  const controls = useMemo(() => deriveControlState(snapshot), [snapshot]);
+  const { canStart, canStop, inputControlValue } = controls;
 
   return (
     <main className="relative flex min-h-full flex-col items-center justify-center p-6 text-foreground md:p-10">
@@ -104,4 +112,4 @@ export function AppView({ snapshot, loading, selectedInput }: Props) {
       </div>
     </main>
   );
-}
+});
