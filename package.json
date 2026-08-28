@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "npm --workspace apps run dev",
     "build": "npm --workspace packages/contracts run build && npm --workspace apps run build",
+    "dist:mac": "npm --workspace apps run dist:mac",
     "typecheck": "npm --workspace packages/contracts run build && npm --workspace apps run typecheck",
     "build:native": "cd native/swift-engine && swift build --disable-sandbox",
     "dev:native": "cd native/swift-engine && swift run --disable-sandbox ClearToneEngine"

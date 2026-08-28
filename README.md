@@ -142,8 +142,16 @@ TC-ClearTone/
 ```bash
 npm run dev          # Start Electron dev server with hot reload
 npm run build        # Build for distribution
+npm run dist:mac     # Build a signed macOS DMG
 npm run preview      # Preview production build
 ```
+
+For macOS packaging, place `_dev-id-apple.p12` in the project root and run
+`npm run dist:mac`. ClearTone detects that certificate and passes it to
+`electron-builder`. For a password-protected certificate, the command prompts securely
+in an interactive terminal; set `CSC_KEY_PASSWORD` instead for CI or other
+non-interactive builds. You can set `CSC_LINK` explicitly to override root certificate
+detection. Certificate files are ignored by Git and are never bundled with the app.
 
 ---
 
