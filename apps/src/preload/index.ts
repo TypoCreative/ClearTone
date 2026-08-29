@@ -13,6 +13,8 @@ const clearToneApi = {
   followSystemInput: (): Promise<void> => ipcRenderer.invoke("engine:followSystemInput"),
   startProcessing: (): Promise<void> => ipcRenderer.invoke("engine:startProcessing"),
   stopProcessing: (): Promise<void> => ipcRenderer.invoke("engine:stopProcessing"),
+  requestMicrophoneAccess: (): Promise<void> =>
+    ipcRenderer.invoke("engine:requestMicrophoneAccess"),
   setStrength: (strength: number): Promise<void> =>
     ipcRenderer.invoke("engine:setStrength", strength),
   onSnapshot: (listener: (snapshot: EngineSnapshot) => void): (() => void) => {

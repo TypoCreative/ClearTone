@@ -4,7 +4,9 @@ import {
   ipcMain,
   Tray,
   nativeImage,
-  screen
+  screen,
+  shell,
+  systemPreferences
 } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -25,6 +27,12 @@ let tray: Tray | null = null;
 let stdoutBuffer = "";
 let engineSnapshot: EngineSnapshot = createInitialSnapshot();
 let appSettings = loadSettings();
+let autoStartPending = true;
+let popupCleanupTimer: NodeJS.Timeout | null = null;
+
+const POPUP_MEMORY_CLEANUP_DELAY_MS = 10_000;
+const MACOS_MICROPHONE_SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 
 // Performance-critical: hardware acceleration must remain enabled.
 // Sandbox disabled for native engine subprocess; keep unless a tighter sandbox is configured.
@@ -82,6 +90,10 @@ function ensureWindow(): void {
 
 function ensurePopupWindow(): BrowserWindow {
   if (popupWindow && !popupWindow.isDestroyed()) {
+    if (popupCleanupTimer) {
+      clearTimeout(popupCleanupTimer);
+      popupCleanupTimer = null;
+    }
     return popupWindow;
   }
 
@@ -106,12 +118,14 @@ function ensurePopupWindow(): BrowserWindow {
     }
   });
 
-  popupWindow.on("blur", () => {
-    popupWindow?.hide();
-  });
+  popupWindow.on("blur", hidePopupWindow);
 
   popupWindow.on("closed", () => {
     popupWindow = null;
+    if (popupCleanupTimer) {
+      clearTimeout(popupCleanupTimer);
+      popupCleanupTimer = null;
+    }
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -121,6 +135,27 @@ function ensurePopupWindow(): BrowserWindow {
   }
 
   return popupWindow;
+}
+
+function hidePopupWindow(): void {
+  if (!popupWindow || popupWindow.isDestroyed()) {
+    return;
+  }
+
+  popupWindow.hide();
+  if (popupCleanupTimer) {
+    clearTimeout(popupCleanupTimer);
+  }
+
+  // The tray renderer is recreated on demand. Releasing it after it has been
+  // hidden for a while prevents an unused Chromium renderer from staying in RAM.
+  popupCleanupTimer = setTimeout(() => {
+    popupCleanupTimer = null;
+    if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.isVisible()) {
+      popupWindow.destroy();
+    }
+  }, POPUP_MEMORY_CLEANUP_DELAY_MS);
+  popupCleanupTimer.unref();
 }
 
 function positionPopupWindow(): void {
@@ -154,7 +189,7 @@ function togglePopupWindow(): void {
   const popup = ensurePopupWindow();
 
   if (popup.isVisible()) {
-    popup.hide();
+    hidePopupWindow();
     return;
   }
 
@@ -232,6 +267,11 @@ function handleEngineLine(line: string): void {
 
     if (payload.type === "snapshot" && payload.snapshot) {
       pushSnapshot(payload.snapshot);
+
+      if (autoStartPending && payload.snapshot.phase === "idle") {
+        autoStartPending = false;
+        sendCommand({ type: "startProcessing" });
+      }
     }
   } catch (error) {
     pushSnapshot({
@@ -287,6 +327,7 @@ function bootNativeEngine(): void {
 
   nativeEngine.on("exit", () => {
     nativeEngine = null;
+    autoStartPending = true;
     pushSnapshot({
       ...engineSnapshot,
       phase: "error",
@@ -343,6 +384,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  if (popupCleanupTimer) {
+    clearTimeout(popupCleanupTimer);
+    popupCleanupTimer = null;
+  }
   nativeEngine?.kill();
 });
 
@@ -367,6 +412,28 @@ ipcMain.handle("engine:startProcessing", async () => {
 
 ipcMain.handle("engine:stopProcessing", async () => {
   sendCommand({ type: "stopProcessing" });
+});
+
+ipcMain.handle("engine:requestMicrophoneAccess", async () => {
+  if (process.platform !== "darwin") {
+    sendCommand({ type: "startProcessing" });
+    return;
+  }
+
+  const status = systemPreferences.getMediaAccessStatus("microphone");
+  if (status === "not-determined") {
+    const granted = await systemPreferences.askForMediaAccess("microphone");
+    if (granted) {
+      sendCommand({ type: "startProcessing" });
+      return;
+    }
+  } else if (status === "granted") {
+    sendCommand({ type: "startProcessing" });
+    return;
+  }
+
+  // This URL is a fixed application constant, never renderer/user input.
+  await shell.openExternal(MACOS_MICROPHONE_SETTINGS_URL);
 });
 
 ipcMain.handle("engine:setStrength", async (_event, strength: number) => {

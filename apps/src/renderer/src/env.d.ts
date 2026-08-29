@@ -11,6 +11,7 @@ interface ClearToneApi {
   followSystemInput(): Promise<void>;
   startProcessing(): Promise<void>;
   stopProcessing(): Promise<void>;
+  requestMicrophoneAccess(): Promise<void>;
   setStrength(strength: number): Promise<void>;
   onSnapshot(listener: (snapshot: EngineSnapshot) => void): () => void;
   resizeTray(height: number): Promise<void>;

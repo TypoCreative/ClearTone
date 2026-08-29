@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioInputDevice, EngineSnapshot } from "@contracts";
 import { MetricsGrid } from "../components/MetricsGrid";
+import { MicrophonePermissionAction } from "../components/MicrophonePermissionAction";
 import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
 import { Switch } from "../components/ui/switch";
@@ -126,6 +127,7 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
       {snapshot.lastError ? (
         <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2.5 text-[11px] font-medium text-red-100">
           ERR // {snapshot.lastError}
+          <MicrophonePermissionAction compact permission={snapshot.permission} />
         </div>
       ) : null}
 

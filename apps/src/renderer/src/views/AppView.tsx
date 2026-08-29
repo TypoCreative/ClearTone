@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import type { AudioInputDevice, EnginePhase, EngineSnapshot } from "@contracts";
 import { AppDeviceSelect } from "../components/AppDeviceSelect";
 import { MetricsGrid } from "../components/MetricsGrid";
+import { MicrophonePermissionAction } from "../components/MicrophonePermissionAction";
 import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -99,6 +100,7 @@ export const AppView = memo(function AppView({ snapshot, loading, selectedInput 
               Engine Error
             </div>
             <p className="mt-1 text-sm text-destructive/90">{snapshot.lastError}</p>
+            <MicrophonePermissionAction permission={snapshot.permission} />
           </Card>
         ) : null}
 

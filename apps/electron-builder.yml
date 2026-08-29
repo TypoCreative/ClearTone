@@ -22,10 +22,17 @@ extraResources:
 mac:
   icon: build/icon.icns
   category: public.app-category.utilities
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  binaries:
+    - Contents/Resources/native/ClearToneEngine
   target:
     - dmg
   extendInfo:
     CFBundleName: ClearTone
     CFBundleDisplayName: ClearTone
+    NSMicrophoneUsageDescription: ClearTone uses your microphone to remove background noise in real time.
+    NSAudioCaptureUsageDescription: ClearTone captures microphone audio for real-time noise reduction.
 
 publish: []

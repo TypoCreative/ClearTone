@@ -12,11 +12,14 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     // Frame accumulation buffer
     private var accumulator: [Float] = []
     private let processingQueue = DispatchQueue(label: "cleartone.rnnoise.processing", qos: .userInteractive)
+    private var cleanupGeneration = 0
+    private let memoryCleanupDelay: TimeInterval = 10
+    private var isActive = false
 
     // Metrics tracking
     private var framesProcessed: Int = 0
     private var lastMetricsEmitTime = Date()
-    private let metricsEmitInterval: TimeInterval = 0.15 // 150ms
+    private let metricsEmitInterval: TimeInterval = 0.25
 
     init(publisher: EngineStatePublisher) {
         self.publisher = publisher
@@ -30,9 +33,20 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     }
 
     func start(strength: Double) {
-        self.strength = strength
-        framesProcessed = 0
-        accumulator.removeAll(keepingCapacity: true)
+        processingQueue.sync {
+            cleanupGeneration += 1
+            if state == nil {
+                guard let newState = rnnoise_create(nil) else {
+                    fatalError("Failed to reinitialize RNNoise state")
+                }
+                state = newState
+            }
+            self.strength = strength
+            framesProcessed = 0
+            accumulator.removeAll(keepingCapacity: true)
+            lastMetricsEmitTime = .distantPast
+            isActive = true
+        }
 
         publisher.snapshot.phase = "processing"
         publisher.snapshot.statusMessage = "Processing microphone input through the native engine"
@@ -48,29 +62,48 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     }
 
     func stop() {
-        accumulator.removeAll(keepingCapacity: true)
+        let scheduledGeneration = processingQueue.sync {
+            isActive = false
+            accumulator.removeAll(keepingCapacity: true)
+            cleanupGeneration += 1
+            return cleanupGeneration
+        }
         publisher.snapshot.metrics.inputRms = 0
         publisher.snapshot.metrics.outputRms = 0
         publisher.snapshot.metrics.noiseReductionPercent = 0
+
+        processingQueue.asyncAfter(deadline: .now() + memoryCleanupDelay) { [weak self] in
+            guard let self else { return }
+            guard !self.isActive, self.cleanupGeneration == scheduledGeneration else { return }
+            self.accumulator.removeAll(keepingCapacity: false)
+            if let state = self.state {
+                rnnoise_destroy(state)
+                self.state = nil
+            }
+        }
     }
 
     func setStrength(_ value: Double) {
-        strength = max(0, min(1, value))
+        let normalizedValue = max(0, min(1, value))
+        processingQueue.async { [weak self] in
+            self?.strength = normalizedValue
+        }
     }
 
     /// Feed incoming audio samples into the processor.
     /// Called from the audio capture callback.
     /// Internally accumulates into 480-sample frames, processes through RNNoise, and emits metrics.
     func feedSamples(_ samples: [Float]) {
-        accumulator.append(contentsOf: samples)
+        processingQueue.async { [weak self] in
+            guard let self, self.isActive else { return }
+            self.accumulator.append(contentsOf: samples)
 
-        // Process complete frames
-        while accumulator.count >= frameSize {
-            let frame = Array(accumulator.prefix(frameSize))
-            accumulator.removeFirst(frameSize)
-
-            processingQueue.async { [weak self] in
-                self?.processSingleFrame(frame)
+            // The accumulator is queue-confined, so audio callbacks cannot race
+            // cleanup or RNNoise processing.
+            while self.accumulator.count >= self.frameSize {
+                let frame = Array(self.accumulator.prefix(self.frameSize))
+                self.accumulator.removeFirst(self.frameSize)
+                self.processSingleFrame(frame)
             }
         }
     }
@@ -88,8 +121,12 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         rnnoise_process_frame(st, &output, &inCopy)
 
         // Apply strength blending (mix original and denoised based on strength)
-        let blendedOutput = applyStrength(input: input, denoised: output, strength: strength)
-        let blendedRMS = computeRMS(blendedOutput)
+        let currentStrength = strength
+        let alpha = Float(currentStrength)
+        for index in output.indices {
+            output[index] = input[index] * (1 - alpha) + output[index] * alpha
+        }
+        let blendedRMS = computeRMS(output)
 
         // Compute noise reduction percentage
         let reduction = inputRMS > 0
@@ -99,21 +136,22 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         // Update metrics
         framesProcessed += 1
 
+        let now = Date()
+        guard now.timeIntervalSince(lastMetricsEmitTime) >= metricsEmitInterval else {
+            return
+        }
+        lastMetricsEmitTime = now
+
+        let processedSamples = framesProcessed * frameSize
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.publisher.snapshot.metrics.framesProcessed = self.framesProcessed * self.frameSize
+            self.publisher.snapshot.metrics.framesProcessed = processedSamples
             self.publisher.snapshot.metrics.inputRms = inputRMS
             self.publisher.snapshot.metrics.outputRms = blendedRMS
             self.publisher.snapshot.metrics.noiseReductionPercent = reduction
-            self.publisher.snapshot.metrics.estimatedLatencyMs = max(8, 16 - self.strength * 5)
-
-            // Throttle metric emission
-            let now = Date()
-            if now.timeIntervalSince(self.lastMetricsEmitTime) >= self.metricsEmitInterval {
-                self.lastMetricsEmitTime = now
-                self.publisher.snapshot.statusMessage = "Processing microphone input through the native engine"
-                self.publisher.emitSnapshot()
-            }
+            self.publisher.snapshot.metrics.estimatedLatencyMs = max(8, 16 - currentStrength * 5)
+            self.publisher.snapshot.statusMessage = "Processing microphone input through the native engine"
+            self.publisher.emitSnapshot()
         }
     }
 
@@ -123,13 +161,6 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         guard !samples.isEmpty else { return 0 }
         let sumSquares = samples.reduce(0.0) { $0 + Double($1 * $1) }
         return sqrt(sumSquares / Double(samples.count))
-    }
-
-    /// Blend original and denoised audio based on strength parameter.
-    /// strength=0 → original, strength=1 → fully denoised
-    private func applyStrength(input: [Float], denoised: [Float], strength: Double) -> [Float] {
-        let alpha = Float(strength)
-        return zip(input, denoised).map { $0 * (1 - alpha) + $1 * alpha }
     }
 
     deinit {

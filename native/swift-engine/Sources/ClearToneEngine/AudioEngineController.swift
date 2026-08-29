@@ -54,7 +54,9 @@ final class AudioEngineController: @unchecked Sendable {
                 }
             }
         case .denied, .restricted:
-            fail(message: "Microphone access is required to start processing.")
+            fail(
+                message: "Microphone access was denied. Enable ClearTone in System Settings > Privacy & Security > Microphone, then restart the app."
+            )
         @unknown default:
             fail(message: "Microphone permission state is unknown.")
         }
