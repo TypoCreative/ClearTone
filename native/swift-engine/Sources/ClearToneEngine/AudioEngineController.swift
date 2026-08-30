@@ -1,4 +1,6 @@
 import AVFoundation
+import AudioToolbox
+import CoreAudio
 import Foundation
 
 final class AudioEngineController: @unchecked Sendable {
@@ -10,11 +12,10 @@ final class AudioEngineController: @unchecked Sendable {
     private let audioEngine = AVAudioEngine()
     private var isCapturing = false
 
-    init(publisher: EngineStatePublisher, deviceManager: AudioDeviceManager, noiseProcessor: NoiseReductionProcessor) {
+    init(publisher: EngineStatePublisher, deviceManager: AudioDeviceManager, noiseProcessor: RNNoiseProcessor) {
         self.publisher = publisher
         self.deviceManager = deviceManager
-        // We know the noise processor is RNNoiseProcessor for the real pipeline
-        self.noiseProcessor = noiseProcessor as! RNNoiseProcessor
+        self.noiseProcessor = noiseProcessor
     }
 
     func startProcessing() {
@@ -91,6 +92,47 @@ final class AudioEngineController: @unchecked Sendable {
         publisher.emitSnapshot()
     }
 
+    func setVirtualMicrophone(enabled: Bool) throws {
+        noiseProcessor.refreshVirtualMicrophoneState()
+
+        if enabled {
+            publisher.refreshPermission()
+            guard publisher.snapshot.permission == "granted" else {
+                throw VirtualMicrophoneError.microphonePermissionRequired
+            }
+            guard !publisher.snapshot.inputs.isEmpty else {
+                throw VirtualMicrophoneError.physicalInputRequired
+            }
+            do {
+                try noiseProcessor.setVirtualMicrophone(enabled: true)
+                try deviceManager.setVirtualMicrophoneAsSystemDefault(enabled: true)
+            } catch {
+                try? noiseProcessor.setVirtualMicrophone(enabled: false)
+                throw error
+            }
+        } else {
+            try deviceManager.setVirtualMicrophoneAsSystemDefault(enabled: false)
+            try noiseProcessor.setVirtualMicrophone(enabled: false)
+        }
+
+        publisher.snapshot.lastError = nil
+        publisher.snapshot.statusMessage = publisher.snapshot.virtualMicrophone.statusMessage
+        publisher.emitSnapshot()
+    }
+
+    func refreshVirtualMicrophoneState() {
+        noiseProcessor.refreshVirtualMicrophoneState()
+    }
+
+    func setStrength(_ value: Double) {
+        noiseProcessor.setStrength(value)
+    }
+
+    func restartAfterDeviceChange() {
+        stopProcessing()
+        startProcessing()
+    }
+
     // MARK: - Audio Capture
 
     private func beginAudioCapture() {
@@ -98,6 +140,24 @@ final class AudioEngineController: @unchecked Sendable {
 
         let inputNode = audioEngine.inputNode
         _ = inputNode.outputFormat(forBus: 0)
+
+        if let selectedUID = publisher.snapshot.selectedInputId,
+           let selectedDeviceID = deviceManager.audioDeviceID(forUID: selectedUID),
+           let inputUnit = inputNode.audioUnit {
+            var mutableDeviceID = selectedDeviceID
+            let status = AudioUnitSetProperty(
+                inputUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &mutableDeviceID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            guard status == noErr else {
+                fail(message: "Could not select the requested microphone (Core Audio error \(status)).")
+                return
+            }
+        }
 
         // Configure desired format: Float32, mono, 48kHz
         guard let desiredFormat = AVAudioFormat(
@@ -130,6 +190,9 @@ final class AudioEngineController: @unchecked Sendable {
 
         // Notify RNNoise processor
         noiseProcessor.start(strength: publisher.snapshot.strength)
+        if publisher.snapshot.phase == "error" {
+            stopAudioCapture()
+        }
     }
 
     private func stopAudioCapture() {
@@ -145,6 +208,9 @@ final class AudioEngineController: @unchecked Sendable {
         let frameCount = Int(buffer.frameLength)
 
         let samples = Array(UnsafeBufferPointer(start: channelData, count: frameCount))
-        noiseProcessor.feedSamples(samples)
+        noiseProcessor.feedSamples(
+            samples,
+            capturedAtNanoseconds: DispatchTime.now().uptimeNanoseconds
+        )
     }
 }

@@ -1,54 +1,54 @@
 # Virtual Microphone Device
 
-## Overview
+## Decision
 
-A virtual microphone device appears as a selectable input in macOS, allowing any app (Zoom, Discord, OBS) to use ClearTone's denoised output as their microphone source.
+ClearTone uses a Core Audio Audio Server Driver Plug-in (HAL), not AudioDriverKit.
+Apple's AudioDriverKit documentation says virtual devices should use an Audio Server
+Driver Plug-in and that AudioDriverKit supports physical audio devices.
 
-## Status: Non-Goal for V1
+## Implemented Design
 
-The V1 spec explicitly lists virtual microphone routing as a non-goal:
-> "Shipping virtual microphone routing in v1" — V1 Design Spec
+- Device name: `ClearTone Virtual Microphone`
+- Device UID: `com.typocreative.cleartone.virtual-microphone`
+- Driver bundle ID: `com.typocreative.cleartone.virtual-microphone.driver`
+- Universal binary: arm64 and x86_64
+- Format: duplex 32-bit Float32 stereo LPCM at 44.1 or 48 kHz
+- Transport: an absolute-frame-tagged ring buffer copies the output stream to input
+- Install location: `/Library/Audio/Plug-Ins/HAL`
 
-## Approaches
+The Swift engine captures the selected physical microphone, processes 48 kHz audio
+with RNNoise, and writes it to the virtual device output. The HAL plug-in exposes the
+same samples through its input stream. ClearTone then selects the virtual device as
+the macOS default input, so apps that follow the system microphone switch without
+per-app setup.
 
-### 1. Core Audio Aggregate Device
-Create a virtual aggregate device that exposes the processed audio as an input.
+## Installation UX
 
-### 2. AudioDriverKit (macOS 11+)
-Apple's modern driver framework for creating virtual audio devices. Requires:
-- DriverKit entitlement
-- System Extension (requires notarization)
-- C++ implementation
+The toggle remains disabled until the driver is detected. **Install Driver** runs
+the bundled `.pkg` from ClearTone; macOS requests administrator approval. The package restarts
+`coreaudiod`, and ClearTone polls device discovery for up to three minutes. Some OS
+versions may still require logout or restart.
 
-### 3. Core Audio Server Plugin (Legacy)
-The traditional approach (deprecated but still works):
-- Install a `.driver` bundle in `/Library/Audio/Plug-Ins/HAL/`
-- Requires admin privileges for installation
-- No notarization needed for the plugin itself
+## Build and Release
 
-### 4. Soundflower / BlackHole Pattern
-Open-source virtual audio drivers as reference:
-- [BlackHole](https://github.com/ExistentialAudio/BlackHole) — modern, AudioDriverKit
-- [Soundflower](https://github.com/mattingalls/Soundflower) — legacy, widely used
+`npm run build:driver` builds the Xcode target, verifies a universal driver bundle,
+and creates `apps/resources/driver/ClearToneVirtualMicrophone.pkg`.
 
-### 5. Loopback (Commercial)
-[Rogue Amoeba's Loopback](https://rogueameoba.com/loopback/) is a polished commercial virtual audio router. ClearTone could potentially route through it.
+Development output is ad-hoc signed. Release builds should provide:
 
-## V1 Workaround
+- `CLEARTONE_DRIVER_SIGN_IDENTITY`: Developer ID Application certificate name
+- `CLEARTONE_INSTALLER_SIGN_IDENTITY`: Developer ID Installer certificate name
 
-Without a virtual mic, users can still test ClearTone:
-1. The denoised audio plays through the speaker/headphones (monitoring)
-2. Users hear the effect in real-time
-3. Next step: route to a virtual mic for app integration
+The package and final app must be notarized for frictionless distribution outside
+the Mac App Store.
 
-## Recommendation
+## Source and License
 
-Build V1 without virtual mic, but architect the `AudioEngineController` so that:
-- The output sink is pluggable (currently: monitor output, later: virtual mic)
-- After V1 is stable, implement the cheapest viable virtual mic (likely BlackHole integration or a minimal AudioDriverKit extension)
+The implementation is adapted from Apple's `Creating an Audio Server Driver Plug-in`
+sample. Apple publishes that sample under the MIT license; the original license is
+retained in `native/virtual-microphone-driver/LICENSE.txt`.
 
 ## References
 
-- BlackHole: https://github.com/ExistentialAudio/BlackHole
-- AudioDriverKit: https://developer.apple.com/documentation/audiodriverkit
-- Creating aggregate devices: https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide/AudioUnitHostingFundamentals/AudioUnitHostingFundamentals.html
+- https://developer.apple.com/documentation/coreaudio/creating-an-audio-server-driver-plug-in
+- https://developer.apple.com/documentation/audiodriverkit/creating-an-audio-device-driver

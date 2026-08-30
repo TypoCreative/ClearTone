@@ -19,6 +19,7 @@ export function ThemeToggle({ compact = false }: Props) {
       )}
     >
       <SunIcon
+        aria-hidden="true"
         className={cn(
           "h-4 w-4 transition-colors",
           isDark ? "text-muted-foreground" : "text-primary"
@@ -30,6 +31,7 @@ export function ThemeToggle({ compact = false }: Props) {
         aria-label="Toggle dark theme"
       />
       <MoonIcon
+        aria-hidden="true"
         className={cn(
           "h-4 w-4 transition-colors",
           isDark ? "text-primary" : "text-muted-foreground"

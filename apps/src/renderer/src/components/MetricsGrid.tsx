@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
-import { formatLatency, formatPercent, formatRms, phaseLabels } from "../utils/engineUi";
+import { formatLatency, formatPercent, formatRms, integerFormatter, phaseLabels } from "../utils/engineUi";
 
 type Variant = "app" | "tray";
 
@@ -19,17 +19,20 @@ export const MetricsGrid = memo(function MetricsGrid({ snapshot, loading, varian
         { label: "Out", value: formatRms(snapshot.metrics.outputRms) },
         { label: "NR", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
         { label: "Lat", value: formatLatency(snapshot.metrics.estimatedLatencyMs) },
+        { label: "Drop", value: integerFormatter.format(snapshot.metrics.droppedFrames) },
       ];
     }
 
     return [
-      { label: "Status", value: loading ? "Connecting" : phaseLabels[snapshot.phase] },
+      { label: "Status", value: loading ? "Connecting…" : phaseLabels[snapshot.phase] },
       { label: "Permission", value: snapshot.permission },
-      { label: "Frames", value: snapshot.metrics.framesProcessed.toLocaleString() },
+      { label: "Frames", value: integerFormatter.format(snapshot.metrics.framesProcessed) },
       { label: "Input RMS", value: formatRms(snapshot.metrics.inputRms) },
       { label: "Output RMS", value: formatRms(snapshot.metrics.outputRms) },
       { label: "Noise Reduction", value: formatPercent(snapshot.metrics.noiseReductionPercent / 100) },
       { label: "Latency", value: formatLatency(snapshot.metrics.estimatedLatencyMs) },
+      { label: "Dropped Frames", value: integerFormatter.format(snapshot.metrics.droppedFrames) },
+      { label: "Output Queue", value: integerFormatter.format(snapshot.metrics.outputQueueFrames) },
     ];
   }, [snapshot, loading, variant]);
 

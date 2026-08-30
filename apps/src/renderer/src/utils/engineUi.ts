@@ -9,16 +9,30 @@ export const phaseLabels: Record<EnginePhase, string> = {
   error: "Needs Attention"
 };
 
+const percentFormatter = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 0,
+  style: "percent"
+});
+
+const latencyFormatter = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1
+});
+
+export const integerFormatter = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 0
+});
+
 export function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
+  return percentFormatter.format(value);
 }
 
 export function formatRms(value: number): string {
-  return `${Math.round(value * 100)}%`;
+  return percentFormatter.format(value);
 }
 
 export function formatLatency(value: number): string {
-  return `${value.toFixed(1)} ms`;
+  return `${latencyFormatter.format(value)} ms`;
 }
 
 export function formatDeviceMode(snapshot: EngineSnapshot, selectedInput?: AudioInputDevice): string {

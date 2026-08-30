@@ -3,6 +3,7 @@ import { LightningBoltIcon } from "@radix-ui/react-icons";
 import { cn } from "../lib/utils";
 
 import { Button } from "./ui/button";
+import { runEngineAction } from "../utils/runEngineAction";
 
 type Props = {
   canStart: boolean;
@@ -17,32 +18,31 @@ export const StartStopControls = memo(function StartStopControls({
   mode = "dual",
   variant,
 }: Props) {
+  const isActive = canStop;
+
+  const handleToggle = useCallback(() => {
+    void runEngineAction(() =>
+      isActive ? window.clearTone.stopProcessing() : window.clearTone.startProcessing()
+    );
+  }, [isActive]);
+
+  const handleStart = useCallback(() => {
+    void runEngineAction(() => window.clearTone.startProcessing());
+  }, []);
+
+  const handleStop = useCallback(() => {
+    void runEngineAction(() => window.clearTone.stopProcessing());
+  }, []);
+
   if (mode === "toggle") {
-    const isActive = canStop;
     const label = isActive ? "Stop Processing" : "Start Processing";
     const disabled = isActive ? !canStop : !canStart;
-
-    const handleToggle = useCallback(() => {
-      if (isActive) {
-        void window.clearTone.stopProcessing();
-      } else {
-        void window.clearTone.startProcessing();
-      }
-    }, [isActive]);
-
-    const handleStart = useCallback(() => {
-      void window.clearTone.startProcessing();
-    }, []);
-
-    const handleStop = useCallback(() => {
-      void window.clearTone.stopProcessing();
-    }, []);
 
     if (variant === "trayHeader") {
       return (
         <button
           className={cn(
-            "group relative flex h-12 w-full items-center justify-center overflow-hidden rounded-2xl border text-sm font-semibold tracking-wide transition-all",
+            "group relative flex h-12 w-full items-center justify-center overflow-hidden rounded-2xl border text-sm font-semibold tracking-wide transition-[background-color,border-color,box-shadow,color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
             "disabled:pointer-events-none disabled:opacity-50",
             isActive
               ? "border-white/12 bg-white/8 text-white hover:bg-white/14"
@@ -61,7 +61,7 @@ export const StartStopControls = memo(function StartStopControls({
       return (
         <button
           className={cn(
-            "group relative flex h-20 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border text-lg font-bold tracking-wide transition-all",
+            "group relative flex h-20 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border text-lg font-bold tracking-wide transition-[background-color,border-color,box-shadow,color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             "disabled:pointer-events-none disabled:opacity-50",
             isActive
               ? "border-red-400/30 bg-linear-to-r from-red-500/90 to-red-600/90 text-white shadow-[0_0_30px_rgba(239,68,68,0.3)] hover:shadow-[0_0_40px_rgba(239,68,68,0.45)]"
@@ -71,7 +71,7 @@ export const StartStopControls = memo(function StartStopControls({
           onClick={handleToggle}
           type="button"
         >
-          <LightningBoltIcon className="h-5 w-5" />
+          <LightningBoltIcon aria-hidden="true" className="h-5 w-5" />
           <span className="relative z-10">{label}</span>
         </button>
       );
@@ -94,10 +94,10 @@ export const StartStopControls = memo(function StartStopControls({
 
   return (
     <div className={variant === "tray" ? "flex flex-col gap-2" : "flex flex-col gap-3"}>
-      <Button disabled={!canStart} onClick={() => void window.clearTone.startProcessing()}>
+      <Button disabled={!canStart} onClick={handleStart}>
         Start
       </Button>
-      <Button variant="secondary" disabled={!canStop} onClick={() => void window.clearTone.stopProcessing()}>
+      <Button variant="secondary" disabled={!canStop} onClick={handleStop}>
         Stop
       </Button>
     </div>

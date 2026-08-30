@@ -9,9 +9,17 @@ import { useEngineSnapshot } from "./hooks/useEngineSnapshot";
 import { AppView } from "./views/AppView";
 
 function MainAppRoot() {
-  const { snapshot, loading, selectedInput } = useEngineSnapshot();
+  const { snapshot, loading, selectedInput, actionError, dismissActionError } = useEngineSnapshot();
 
-  return <AppView snapshot={snapshot} loading={loading} selectedInput={selectedInput} />;
+  return (
+    <AppView
+      snapshot={snapshot}
+      loading={loading}
+      selectedInput={selectedInput}
+      actionError={actionError}
+      dismissActionError={dismissActionError}
+    />
+  );
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

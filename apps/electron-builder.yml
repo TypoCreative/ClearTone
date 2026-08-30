@@ -16,6 +16,8 @@ asar: true
 extraResources:
   - from: resources/native
     to: native
+  - from: resources/driver
+    to: driver
   - from: src/assets
     to: assets
 

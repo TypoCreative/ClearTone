@@ -5,7 +5,8 @@ import Foundation
 final class EngineRuntime: @unchecked Sendable {
     let publisher: EngineStatePublisher
     let deviceManager: AudioDeviceManager
-    let noiseProcessor: NoiseReductionProcessor
+    let noiseProcessor: RNNoiseProcessor
+    let virtualMicrophoneOutput: VirtualMicrophoneOutput
     let engineController: AudioEngineController
     let commandHandler: IPCCommandHandler
     let inputBridge: InputBridge
@@ -20,7 +21,11 @@ final class EngineRuntime: @unchecked Sendable {
         deviceManager = AudioDeviceManager(publisher: publisher)
 
         // 3. Create noise processor — real RNNoise for production, simulated for testing
-        noiseProcessor = RNNoiseProcessor(publisher: publisher)
+        virtualMicrophoneOutput = VirtualMicrophoneOutput()
+        noiseProcessor = RNNoiseProcessor(
+            publisher: publisher,
+            virtualOutput: virtualMicrophoneOutput
+        )
         // noiseProcessor = SimulatedNoiseReductionProcessor(publisher: publisher)
 
         // 4. Create engine controller
@@ -29,6 +34,9 @@ final class EngineRuntime: @unchecked Sendable {
             deviceManager: deviceManager,
             noiseProcessor: noiseProcessor
         )
+        deviceManager.onProcessingDeviceChange = { [weak engineController] in
+            engineController?.restartAfterDeviceChange()
+        }
 
         // 5. Create command handler
         commandHandler = IPCCommandHandler(
@@ -56,6 +64,9 @@ final class EngineRuntime: @unchecked Sendable {
         isShuttingDown = true
 
         noiseProcessor.stop()
+        if publisher.snapshot.virtualMicrophone.enabled {
+            try? deviceManager.setVirtualMicrophoneAsSystemDefault(enabled: false)
+        }
         deviceManager.uninstallAudioListeners()
     }
 

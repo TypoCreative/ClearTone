@@ -1,8 +1,4 @@
-import type { AudioInputDevice, EngineSnapshot } from "@contracts";
-
-type AppSettings = {
-  trayOnlyMode: boolean;
-};
+import type { AppSettings, AudioInputDevice, EngineSnapshot } from "@contracts";
 
 interface ClearToneApi {
   getStatus(): Promise<EngineSnapshot>;
@@ -13,6 +9,8 @@ interface ClearToneApi {
   stopProcessing(): Promise<void>;
   requestMicrophoneAccess(): Promise<void>;
   setStrength(strength: number): Promise<void>;
+  setVirtualMicrophone(enabled: boolean): Promise<void>;
+  installVirtualMicrophoneDriver(): Promise<void>;
   onSnapshot(listener: (snapshot: EngineSnapshot) => void): () => void;
   resizeTray(height: number): Promise<void>;
   showMainWindow(): Promise<void>;

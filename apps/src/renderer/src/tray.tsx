@@ -11,9 +11,17 @@ import { TrayView } from "./views/TrayView";
 document.documentElement.classList.add("dark", "tray");
 
 function TrayRoot() {
-  const { snapshot, loading, selectedInput } = useEngineSnapshot();
+  const { snapshot, loading, selectedInput, actionError, dismissActionError } = useEngineSnapshot();
 
-  return <TrayView snapshot={snapshot} loading={loading} selectedInput={selectedInput} />;
+  return (
+    <TrayView
+      snapshot={snapshot}
+      loading={loading}
+      selectedInput={selectedInput}
+      actionError={actionError}
+      dismissActionError={dismissActionError}
+    />
+  );
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

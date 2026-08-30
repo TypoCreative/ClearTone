@@ -1,7 +1,7 @@
 {
   "name": "@cleartone/electron",
   "productName": "ClearTone",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "ClearTone — real-time voice clarity for macOS",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "dist:mac": "electron-vite build && node scripts/package-mac.mjs",
+    "dist:mac": "node scripts/build-driver.mjs && node scripts/build-native.mjs && electron-vite build && node scripts/package-mac.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {

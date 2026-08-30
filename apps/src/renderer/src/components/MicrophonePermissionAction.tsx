@@ -1,6 +1,7 @@
 import { memo, useCallback } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { Button } from "./ui/button";
+import { runEngineAction } from "../utils/runEngineAction";
 
 type Props = {
   permission: EngineSnapshot["permission"];
@@ -17,7 +18,7 @@ export const MicrophonePermissionAction = memo(function MicrophonePermissionActi
     permission === "restricted";
 
   const handleClick = useCallback(() => {
-    void window.clearTone.requestMicrophoneAccess();
+    void runEngineAction(() => window.clearTone.requestMicrophoneAccess());
   }, []);
 
   if (!needsPermission) {

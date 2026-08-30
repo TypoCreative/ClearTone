@@ -1,6 +1,7 @@
 import { memo, useCallback, type ChangeEvent } from "react";
 import type { EngineSnapshot } from "@contracts";
 import { cn } from "../lib/utils";
+import { runEngineAction } from "../utils/runEngineAction";
 
 type Props = {
   snapshot: EngineSnapshot;
@@ -19,22 +20,25 @@ export const TrayDeviceSelect = memo(function TrayDeviceSelect({
   const handleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const nextValue = event.target.value;
     if (nextValue === "__follow_system__") {
-      void window.clearTone.followSystemInput();
+      void runEngineAction(() => window.clearTone.followSystemInput());
       return;
     }
-    void window.clearTone.selectInput(nextValue);
+    void runEngineAction(() => window.clearTone.selectInput(nextValue));
   }, []);
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Mic Input</div>
+      <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400" htmlFor="tray-input-device">Mic Input</label>
       <select
+        autoComplete="off"
+        id="tray-input-device"
+        name="tray-input-device"
         value={value}
         onChange={handleChange}
         disabled={disabled}
         className={cn(
           "h-9 w-full rounded-xl border border-white/12 bg-white/8 px-3 text-[13px] font-medium text-white outline-none transition-colors backdrop-blur-xl",
-          "focus-visible:border-white/30 focus-visible:bg-white/12",
+          "focus-visible:border-white/30 focus-visible:bg-white/12 focus-visible:ring-2 focus-visible:ring-white/60",
           "disabled:cursor-not-allowed disabled:opacity-50"
         )}
       >

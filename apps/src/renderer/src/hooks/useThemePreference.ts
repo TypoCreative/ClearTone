@@ -6,6 +6,7 @@ const STORAGE_KEY = "cleartone-theme";
 
 function applyTheme(theme: ThemePreference) {
   document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
 }
 
 export function useThemePreference() {

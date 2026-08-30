@@ -6,7 +6,7 @@ type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructiv
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
 const baseClassName =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background";
+  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[background-color,border-color,box-shadow,color,filter,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background";
 
 const variantClassNames: Record<ButtonVariant, string> = {
   default:

@@ -1,9 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AudioInputDevice, EngineSnapshot } from "@contracts";
-
-type AppSettings = {
-  trayOnlyMode: boolean;
-};
+import type { AppSettings, AudioInputDevice, EngineSnapshot } from "@contracts";
 
 const clearToneApi = {
   getStatus: (): Promise<EngineSnapshot> => ipcRenderer.invoke("engine:getStatus"),
@@ -17,6 +13,10 @@ const clearToneApi = {
     ipcRenderer.invoke("engine:requestMicrophoneAccess"),
   setStrength: (strength: number): Promise<void> =>
     ipcRenderer.invoke("engine:setStrength", strength),
+  setVirtualMicrophone: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke("engine:setVirtualMicrophone", enabled),
+  installVirtualMicrophoneDriver: (): Promise<void> =>
+    ipcRenderer.invoke("engine:installVirtualMicrophoneDriver"),
   onSnapshot: (listener: (snapshot: EngineSnapshot) => void): (() => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, snapshot: EngineSnapshot) => {
       listener(snapshot);

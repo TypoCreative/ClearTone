@@ -26,6 +26,24 @@ export interface EngineMetrics {
   outputRms: number;
   noiseReductionPercent: number;
   estimatedLatencyMs: number;
+  droppedFrames: number;
+  outputQueueFrames: number;
+}
+
+export interface VirtualMicrophoneState {
+  enabled: boolean;
+  available: boolean;
+  deviceId: string | null;
+  deviceName: string;
+  statusMessage: string;
+}
+
+export interface AppSettings {
+  trayOnlyMode: boolean;
+  virtualMicrophoneEnabled: boolean;
+  strength: number;
+  selectedInputId: string | null;
+  followSystemInput: boolean;
 }
 
 export interface EngineSnapshot {
@@ -39,16 +57,25 @@ export interface EngineSnapshot {
   statusMessage: string;
   lastError: string | null;
   metrics: EngineMetrics;
+  virtualMicrophone: VirtualMicrophoneState;
 }
 
 export type EngineCommand =
-  | { type: "getStatus" }
-  | { type: "listInputs" }
-  | { type: "selectInput"; inputId: string }
-  | { type: "followSystemInput" }
-  | { type: "startProcessing" }
-  | { type: "stopProcessing" }
-  | { type: "setStrength"; strength: number };
+  | { type: "getStatus"; requestId?: string }
+  | { type: "listInputs"; requestId?: string }
+  | { type: "selectInput"; inputId: string; requestId?: string }
+  | { type: "followSystemInput"; requestId?: string }
+  | { type: "startProcessing"; requestId?: string }
+  | { type: "stopProcessing"; requestId?: string }
+  | { type: "setStrength"; strength: number; requestId?: string }
+  | { type: "setVirtualMicrophone"; enabled: boolean; requestId?: string };
+
+export interface EngineAcknowledgement {
+  type: "ack";
+  requestId: string;
+  ok: boolean;
+  error?: string;
+}
 
 export function createInitialSnapshot(): EngineSnapshot {
   return {
@@ -66,11 +93,23 @@ export function createInitialSnapshot(): EngineSnapshot {
       inputRms: 0,
       outputRms: 0,
       noiseReductionPercent: 0,
-      estimatedLatencyMs: 0
+      estimatedLatencyMs: 0,
+      droppedFrames: 0,
+      outputQueueFrames: 0
+    },
+    virtualMicrophone: {
+      enabled: false,
+      available: false,
+      deviceId: null,
+      deviceName: "ClearTone Virtual Microphone",
+      statusMessage: "Virtual microphone is off"
     }
   };
 }
 
 export function normalizeStrength(strength: number): number {
+  if (!Number.isFinite(strength)) {
+    return 0.65;
+  }
   return Math.max(0, Math.min(1, strength));
 }

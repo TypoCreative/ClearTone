@@ -16,6 +16,16 @@ struct EngineMetrics: Codable {
     var outputRms: Double
     var noiseReductionPercent: Double
     var estimatedLatencyMs: Double
+    var droppedFrames: Int
+    var outputQueueFrames: Int
+}
+
+struct VirtualMicrophoneState: Codable {
+    var enabled: Bool
+    var available: Bool
+    var deviceId: String?
+    var deviceName: String
+    var statusMessage: String
 }
 
 struct EngineSnapshot: Codable {
@@ -29,17 +39,27 @@ struct EngineSnapshot: Codable {
     var statusMessage: String
     var lastError: String?
     var metrics: EngineMetrics
+    var virtualMicrophone: VirtualMicrophoneState
 }
 
 struct EngineCommand: Codable {
     let type: String
     let inputId: String?
     let strength: Double?
+    let enabled: Bool?
+    let requestId: String?
 }
 
 struct SnapshotEnvelope: Codable {
     let type: String
     let snapshot: EngineSnapshot
+}
+
+struct AcknowledgementEnvelope: Codable {
+    let type: String
+    let requestId: String
+    let ok: Bool
+    let error: String?
 }
 
 // MARK: - State Publisher
@@ -62,7 +82,16 @@ final class EngineStatePublisher: @unchecked Sendable {
             inputRms: 0,
             outputRms: 0,
             noiseReductionPercent: 0,
-            estimatedLatencyMs: 0
+            estimatedLatencyMs: 0,
+            droppedFrames: 0,
+            outputQueueFrames: 0
+        ),
+        virtualMicrophone: VirtualMicrophoneState(
+            enabled: false,
+            available: false,
+            deviceId: nil,
+            deviceName: VirtualMicrophoneOutput.deviceName,
+            statusMessage: "Virtual microphone is off"
         )
     )
 
@@ -107,6 +136,26 @@ final class EngineStatePublisher: @unchecked Sendable {
             }
         } catch {
             FileHandle.standardError.write(Data("Failed to encode engine snapshot\n".utf8))
+        }
+    }
+
+    func emitAcknowledgement(requestId: String?, ok: Bool, error: String? = nil) {
+        guard let requestId else { return }
+
+        do {
+            let payload = try encoder.encode(
+                AcknowledgementEnvelope(
+                    type: "ack",
+                    requestId: requestId,
+                    ok: ok,
+                    error: error
+                )
+            )
+            if let line = String(data: payload, encoding: .utf8) {
+                FileHandle.standardOutput.write(Data((line + "\n").utf8))
+            }
+        } catch {
+            FileHandle.standardError.write(Data("Failed to encode engine acknowledgement\n".utf8))
         }
     }
 }

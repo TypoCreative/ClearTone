@@ -36,6 +36,11 @@ let package = Package(
             name: "ClearToneEngine",
             dependencies: ["CRNNoise"],
             path: "Sources/ClearToneEngine"
+        ),
+        .testTarget(
+            name: "ClearToneEngineTests",
+            dependencies: ["ClearToneEngine"],
+            path: "Tests/ClearToneEngineTests"
         )
     ]
 )

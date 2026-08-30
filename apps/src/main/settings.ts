@@ -1,13 +1,14 @@
 import { app } from "electron";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-
-type AppSettings = {
-  trayOnlyMode: boolean;
-};
+import type { AppSettings } from "@contracts";
 
 const defaultSettings: AppSettings = {
-  trayOnlyMode: false
+  trayOnlyMode: false,
+  virtualMicrophoneEnabled: false,
+  strength: 0.65,
+  selectedInputId: null,
+  followSystemInput: true
 };
 
 function settingsPath(): string {
@@ -24,7 +25,20 @@ export function loadSettings(): AppSettings {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<AppSettings>;
     return {
-      trayOnlyMode: typeof parsed.trayOnlyMode === "boolean" ? parsed.trayOnlyMode : defaultSettings.trayOnlyMode
+      trayOnlyMode: typeof parsed.trayOnlyMode === "boolean" ? parsed.trayOnlyMode : defaultSettings.trayOnlyMode,
+      virtualMicrophoneEnabled:
+        typeof parsed.virtualMicrophoneEnabled === "boolean"
+          ? parsed.virtualMicrophoneEnabled
+          : defaultSettings.virtualMicrophoneEnabled,
+      strength:
+        typeof parsed.strength === "number" && Number.isFinite(parsed.strength)
+          ? Math.max(0, Math.min(1, parsed.strength))
+          : defaultSettings.strength,
+      selectedInputId: typeof parsed.selectedInputId === "string" ? parsed.selectedInputId : null,
+      followSystemInput:
+        typeof parsed.followSystemInput === "boolean"
+          ? parsed.followSystemInput
+          : defaultSettings.followSystemInput
     };
   } catch {
     return { ...defaultSettings };
@@ -36,7 +50,9 @@ export function saveSettings(settings: AppSettings): void {
 
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(settings, null, 2));
+    const temporaryPath = `${path}.tmp-${process.pid}`;
+    writeFileSync(temporaryPath, JSON.stringify(settings, null, 2), { mode: 0o600 });
+    renameSync(temporaryPath, path);
   } catch (error) {
     console.error("[cleartone:settings] failed to save settings:", error);
   }

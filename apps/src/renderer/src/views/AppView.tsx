@@ -6,6 +6,8 @@ import { MicrophonePermissionAction } from "../components/MicrophonePermissionAc
 import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { VirtualMicrophoneControl } from "../components/VirtualMicrophoneControl";
+import { ActionError } from "../components/ActionError";
 import { Card, CardDescription, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
 import { deriveControlState, phaseLabels } from "../utils/engineUi";
@@ -14,6 +16,8 @@ type Props = {
   snapshot: EngineSnapshot;
   loading: boolean;
   selectedInput: AudioInputDevice | undefined;
+  actionError: string | null;
+  dismissActionError: () => void;
 };
 
 const StatusBadge = memo(function StatusBadge({
@@ -25,7 +29,7 @@ const StatusBadge = memo(function StatusBadge({
 }) {
   const isProcessing = phase === "processing";
   const isError = phase === "error";
-  const label = loading ? "Connecting" : phaseLabels[phase];
+  const label = loading ? "Connecting…" : phaseLabels[phase];
 
   return (
     <div
@@ -37,8 +41,11 @@ const StatusBadge = memo(function StatusBadge({
             ? "border-red-400/30 bg-red-400/15 text-red-100"
             : "border-white/10 bg-white/8 text-slate-200"
       )}
+      aria-live="polite"
+      role="status"
     >
       <span
+        aria-hidden="true"
         className={cn(
           "h-2 w-2 rounded-full",
           isProcessing && "animate-pulse bg-emerald-300",
@@ -50,12 +57,28 @@ const StatusBadge = memo(function StatusBadge({
   );
 });
 
-export const AppView = memo(function AppView({ snapshot, loading, selectedInput }: Props) {
+export const AppView = memo(function AppView({
+  snapshot,
+  loading,
+  selectedInput,
+  actionError,
+  dismissActionError
+}: Props) {
   const controls = useMemo(() => deriveControlState(snapshot), [snapshot]);
   const { canStart, canStop, inputControlValue } = controls;
 
   return (
-    <main className="relative flex min-h-full flex-col items-center justify-center p-6 text-foreground md:p-10">
+    <>
+      <a
+        className="sr-only z-50 rounded-md bg-background px-3 py-2 text-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+        href="#main-content"
+      >
+        Skip to Main Content
+      </a>
+      <main
+        className="relative flex min-h-full flex-col items-center justify-center p-6 text-foreground md:p-10"
+        id="main-content"
+      >
       <div className="relative w-full max-w-6xl space-y-6">
         <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
@@ -90,15 +113,18 @@ export const AppView = memo(function AppView({ snapshot, loading, selectedInput 
               disabled={snapshot.inputs.length === 0}
             />
             <StrengthSlider snapshot={snapshot} />
+            <VirtualMicrophoneControl snapshot={snapshot} />
           </Card>
         </section>
 
+        <ActionError message={actionError} onDismiss={dismissActionError} />
+
         {snapshot.lastError ? (
           <Card className="border-destructive/30 bg-destructive/10 p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
-              <span className="h-2 w-2 rounded-full bg-destructive" />
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-destructive">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-destructive" />
               Engine Error
-            </div>
+            </h2>
             <p className="mt-1 text-sm text-destructive/90">{snapshot.lastError}</p>
             <MicrophonePermissionAction permission={snapshot.permission} />
           </Card>
@@ -106,12 +132,13 @@ export const AppView = memo(function AppView({ snapshot, loading, selectedInput 
 
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live Engine Metrics</span>
+            <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live Engine Metrics</h2>
           </div>
           <MetricsGrid snapshot={snapshot} loading={loading} variant="app" />
         </section>
       </div>
-    </main>
+      </main>
+    </>
   );
 });

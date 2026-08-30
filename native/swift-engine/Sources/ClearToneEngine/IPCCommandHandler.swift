@@ -16,28 +16,56 @@ final class IPCCommandHandler: @unchecked Sendable {
 
         do {
             let command = try JSONDecoder().decode(EngineCommand.self, from: data)
-            handle(command: command)
+            do {
+                try handle(command: command)
+                publisher.emitAcknowledgement(requestId: command.requestId, ok: true)
+            } catch {
+                let message = error.localizedDescription
+                publisher.snapshot.lastError = message
+                publisher.emitSnapshot()
+                publisher.emitAcknowledgement(
+                    requestId: command.requestId,
+                    ok: false,
+                    error: message
+                )
+            }
         } catch {
             engineController.fail(message: "Unable to decode bridge command.")
         }
     }
 
-    private func handle(command: EngineCommand) {
+    private func handle(command: EngineCommand) throws {
         switch command.type {
         case "getStatus", "listInputs":
             deviceManager.refreshAudioEnvironment(reason: "Status requested")
             publisher.refreshPermission()
+            engineController.refreshVirtualMicrophoneState()
             publisher.emitSnapshot()
 
         case "selectInput":
             deviceManager.refreshAudioEnvironment(reason: "Manual input selection")
+            guard let inputId = command.inputId,
+                  publisher.snapshot.inputs.contains(where: { $0.id == inputId }) else {
+                throw EngineCommandError.invalidInputDevice
+            }
+            let shouldRestart = publisher.snapshot.phase == "processing"
+            if shouldRestart {
+                engineController.stopProcessing()
+            }
             publisher.snapshot.followSystemInput = false
-            publisher.snapshot.selectedInputId = command.inputId
+            publisher.snapshot.selectedInputId = inputId
             publisher.snapshot.lastError = nil
             publisher.snapshot.statusMessage = "Using selected input device"
             publisher.emitSnapshot()
+            if shouldRestart {
+                engineController.startProcessing()
+            }
 
         case "followSystemInput":
+            let shouldRestart = publisher.snapshot.phase == "processing"
+            if shouldRestart {
+                engineController.stopProcessing()
+            }
             publisher.snapshot.followSystemInput = true
             deviceManager.refreshAudioEnvironment(reason: "Following system input", forceSystemSelection: true)
             publisher.snapshot.lastError = nil
@@ -45,6 +73,9 @@ final class IPCCommandHandler: @unchecked Sendable {
                 currentInputName: deviceManager.currentInputName()
             )
             publisher.emitSnapshot()
+            if shouldRestart {
+                engineController.startProcessing()
+            }
 
         case "startProcessing":
             engineController.startProcessing()
@@ -53,15 +84,50 @@ final class IPCCommandHandler: @unchecked Sendable {
             engineController.stopProcessing()
 
         case "setStrength":
-            publisher.snapshot.strength = max(0, min(1, command.strength ?? publisher.snapshot.strength))
+            guard let strength = command.strength, strength.isFinite else {
+                throw EngineCommandError.invalidStrength
+            }
+            publisher.snapshot.strength = max(0, min(1, strength))
+            engineController.setStrength(publisher.snapshot.strength)
             publisher.snapshot.statusMessage = publisher.snapshot.phase == "processing"
                 ? "Processing microphone input through the native engine"
                 : publisher.idleStatusMessage(currentInputName: deviceManager.currentInputName())
             publisher.snapshot.lastError = nil
             publisher.emitSnapshot()
 
+        case "setVirtualMicrophone":
+            guard let enabled = command.enabled else {
+                throw EngineCommandError.invalidVirtualMicrophoneState
+            }
+            try engineController.setVirtualMicrophone(enabled: enabled)
+            if enabled,
+               publisher.snapshot.phase != "processing",
+               publisher.snapshot.phase != "starting" {
+                engineController.startProcessing()
+            }
+
         default:
-            engineController.fail(message: "Unsupported engine command: \(command.type)")
+            throw EngineCommandError.unsupportedCommand(command.type)
+        }
+    }
+}
+
+enum EngineCommandError: LocalizedError {
+    case invalidInputDevice
+    case invalidStrength
+    case invalidVirtualMicrophoneState
+    case unsupportedCommand(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidInputDevice:
+            return "The selected microphone is no longer available. Choose another microphone."
+        case .invalidStrength:
+            return "Denoise strength must be a number between 0 and 1."
+        case .invalidVirtualMicrophoneState:
+            return "Virtual microphone state is invalid."
+        case .unsupportedCommand(let type):
+            return "Unsupported engine command: \(type)"
         }
     }
 }
@@ -69,6 +135,7 @@ final class IPCCommandHandler: @unchecked Sendable {
 // MARK: - Input Bridge
 
 final class InputBridge: @unchecked Sendable {
+    private let maximumBufferBytes = 1_000_000
     private var buffer = Data()
     private let handler: IPCCommandHandler
 
@@ -78,6 +145,11 @@ final class InputBridge: @unchecked Sendable {
 
     func consume(_ data: Data) {
         buffer.append(data)
+        guard buffer.count <= maximumBufferBytes else {
+            buffer.removeAll(keepingCapacity: false)
+            handler.handle(line: "")
+            return
+        }
         while let range = buffer.range(of: Data([0x0a])) {
             let lineData = buffer.subdata(in: buffer.startIndex..<range.lowerBound)
             buffer.removeSubrange(buffer.startIndex...range.lowerBound)

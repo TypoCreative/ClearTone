@@ -6,6 +6,9 @@ protocol NoiseReductionProcessor: AnyObject {
     func start(strength: Double)
     func stop()
     func setStrength(_ value: Double)
+    func feedSamples(_ samples: [Float], capturedAtNanoseconds: UInt64)
+    func setVirtualMicrophone(enabled: Bool) throws
+    func refreshVirtualMicrophoneState()
 }
 
 // MARK: - Simulated Implementation
@@ -53,6 +56,17 @@ final class SimulatedNoiseReductionProcessor: NoiseReductionProcessor {
     func setStrength(_ value: Double) {
         strength = value
     }
+
+    func feedSamples(_: [Float], capturedAtNanoseconds _: UInt64) {}
+
+    func setVirtualMicrophone(enabled: Bool) throws {
+        publisher.snapshot.virtualMicrophone.enabled = enabled
+        publisher.snapshot.virtualMicrophone.statusMessage = enabled
+            ? "Virtual microphone is unavailable in simulated mode"
+            : "Virtual microphone is off"
+    }
+
+    func refreshVirtualMicrophoneState() {}
 
     // MARK: - Simulation Tick
 

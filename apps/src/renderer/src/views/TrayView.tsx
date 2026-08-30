@@ -7,19 +7,30 @@ import { StrengthSlider } from "../components/StrengthSlider";
 import { Switch } from "../components/ui/switch";
 import { TrayDeviceSelect } from "../components/TrayDeviceSelect";
 import { cn } from "../lib/utils";
+import { VirtualMicrophoneControl } from "../components/VirtualMicrophoneControl";
+import { ActionError } from "../components/ActionError";
+import { runEngineAction } from "../utils/runEngineAction";
 import { deriveControlState, formatDeviceMode, phaseLabels } from "../utils/engineUi";
 
 type Props = {
   snapshot: EngineSnapshot;
   loading: boolean;
   selectedInput: AudioInputDevice | undefined;
+  actionError: string | null;
+  dismissActionError: () => void;
 };
 
-export const TrayView = memo(function TrayView({ snapshot, loading, selectedInput }: Props) {
+export const TrayView = memo(function TrayView({
+  snapshot,
+  loading,
+  selectedInput,
+  actionError,
+  dismissActionError
+}: Props) {
   const controls = useMemo(() => deriveControlState(snapshot), [snapshot]);
   const { canStart, canStop, inputControlValue } = controls;
 
-  const statusLabel = loading ? "Connecting" : phaseLabels[snapshot.phase];
+  const statusLabel = loading ? "Connecting…" : phaseLabels[snapshot.phase];
   const deviceModeLabel = formatDeviceMode(snapshot, selectedInput);
   const isProcessing = snapshot.phase === "processing";
   const isError = snapshot.phase === "error";
@@ -46,10 +57,12 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
     };
   }, []);
 
-  const handleTrayOnlyChange = useCallback((checked: boolean) => {
+  const handleTrayOnlyChange = useCallback(async (checked: boolean) => {
+    const previousValue = trayOnlyMode;
     setTrayOnlyMode(checked);
-    void window.clearTone.setTrayOnlyMode(checked);
-  }, []);
+    const succeeded = await runEngineAction(() => window.clearTone.setTrayOnlyMode(checked));
+    if (!succeeded) setTrayOnlyMode(previousValue);
+  }, [trayOnlyMode]);
 
   const statusClassName = cn(
     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]",
@@ -92,8 +105,9 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
             </div>
             <div className="max-w-[180px] truncate text-[11px] text-slate-400">{deviceModeLabel}</div>
           </div>
-          <span className={statusClassName}>
+          <span aria-live="polite" className={statusClassName} role="status">
             <span
+              aria-hidden="true"
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
                 isProcessing
@@ -122,10 +136,13 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
           disabled={snapshot.inputs.length === 0}
         />
         <StrengthSlider snapshot={snapshot} variant="tray" />
+        <VirtualMicrophoneControl snapshot={snapshot} variant="tray" />
       </div>
 
+      <ActionError compact message={actionError} onDismiss={dismissActionError} />
+
       {snapshot.lastError ? (
-        <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2.5 text-[11px] font-medium text-red-100">
+        <div aria-live="polite" className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2.5 text-[11px] font-medium text-red-100" role="alert">
           ERR // {snapshot.lastError}
           <MicrophonePermissionAction compact permission={snapshot.permission} />
         </div>
@@ -140,8 +157,9 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
 
       <div className="space-y-3 border-t border-white/10 pt-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-medium text-slate-300">Tray only mode</span>
+          <span className="text-[11px] font-medium text-slate-300" id="tray-only-label">Tray Only Mode</span>
           <Switch
+            aria-labelledby="tray-only-label"
             checked={trayOnlyMode}
             onCheckedChange={handleTrayOnlyChange}
           />
@@ -149,8 +167,8 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
         <div className="flex items-center justify-between gap-3">
           {!trayOnlyMode ? (
             <button
-              className="text-[11px] font-medium text-slate-300 transition-colors hover:text-white"
-              onClick={() => void window.clearTone.showMainWindow()}
+              className="rounded-sm text-[11px] font-medium text-slate-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              onClick={() => void runEngineAction(() => window.clearTone.showMainWindow())}
               type="button"
             >
               Show ClearTone
@@ -159,8 +177,8 @@ export const TrayView = memo(function TrayView({ snapshot, loading, selectedInpu
             <span className="text-[11px] text-slate-500">Main window hidden</span>
           )}
           <button
-            className="text-[11px] font-medium text-slate-400 transition-colors hover:text-white"
-            onClick={() => void window.clearTone.quitApp()}
+            className="rounded-sm text-[11px] font-medium text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            onClick={() => void runEngineAction(() => window.clearTone.quitApp())}
             type="button"
           >
             Quit

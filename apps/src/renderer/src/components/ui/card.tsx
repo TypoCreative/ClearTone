@@ -8,7 +8,7 @@ export function Card({ className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/10 bg-card/60 text-card-foreground shadow-(--card-glow) backdrop-blur-xl transition-all duration-300 hover:bg-card/70 hover:shadow-(--card-glow-hover)",
+        "relative overflow-hidden rounded-2xl border border-white/10 bg-card/60 text-card-foreground shadow-(--card-glow) backdrop-blur-xl transition-[background-color,box-shadow] duration-300 hover:bg-card/70 hover:shadow-(--card-glow-hover)",
         "before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-linear-to-r before:from-transparent before:via-primary/30 before:to-transparent",
         className
       )}
@@ -26,7 +26,7 @@ export function CardHeader({ className, ...props }: CardHeaderProps) {
 export type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement>;
 
 export function CardTitle({ className, ...props }: CardTitleProps) {
-  return <h3 className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />;
+  return <h2 className={cn("text-lg font-semibold leading-none tracking-tight text-balance", className)} {...props} />;
 }
 
 export type CardDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>;

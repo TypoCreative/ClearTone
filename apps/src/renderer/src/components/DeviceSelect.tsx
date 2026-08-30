@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "./ui/select";
+import { runEngineAction } from "../utils/runEngineAction";
 
 type Props = {
   snapshot: EngineSnapshot;
@@ -27,10 +28,10 @@ export const DeviceSelect = memo(function DeviceSelect({
 }: Props) {
   const handleChange = useCallback((nextValue: string) => {
     if (nextValue === "__follow_system__") {
-      void window.clearTone.followSystemInput();
+      void runEngineAction(() => window.clearTone.followSystemInput());
       return;
     }
-    void window.clearTone.selectInput(nextValue);
+    void runEngineAction(() => window.clearTone.selectInput(nextValue));
   }, []);
 
   const label = variant === "tray" ? "Mic" : "Select Device";
@@ -41,7 +42,7 @@ export const DeviceSelect = memo(function DeviceSelect({
         {label}
       </div>
       <Select value={value} onValueChange={handleChange} disabled={disabled}>
-        <SelectTrigger className={variant === "tray" ? "h-9 text-xs" : ""}>
+        <SelectTrigger aria-label={label} className={variant === "tray" ? "h-9 text-xs" : ""}>
           <SelectValue placeholder={variant === "tray" ? "Input" : "Select input"} />
         </SelectTrigger>
         <SelectContent>

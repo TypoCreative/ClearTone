@@ -1,0 +1,14 @@
+/*
+See the LICENSE.txt file for this sample’s licensing information.
+
+Abstract:
+Localized strings displayed by the device.
+*/
+
+DeviceName = "ClearTone Virtual Microphone";
+InputStreamName = "ClearTone Microphone Input";
+OutputStreamName = "ClearTone Engine Output";
+ManufacturerName = "TypoCreative";
+MasterElementName = "Master";
+LeftElementName = "Left";
+RightElementName = "Right";
