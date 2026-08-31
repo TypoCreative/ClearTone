@@ -243,11 +243,13 @@ final class AudioDeviceManager: @unchecked Sendable {
     }
 
     func handleAudioEnvironmentChange(reason: String, wasProcessing: Bool) {
+        let previousSelectedInputId = publisher.snapshot.selectedInputId
         refreshAudioEnvironment(reason: reason, forceSystemSelection: publisher.snapshot.followSystemInput)
-        if wasProcessing {
+        let selectedInputChanged = previousSelectedInputId != publisher.snapshot.selectedInputId
+        if wasProcessing && selectedInputChanged {
             onProcessingDeviceChange?()
             return
-        } else {
+        } else if !wasProcessing {
             publisher.snapshot.statusMessage = publisher.idleStatusMessage(currentInputName: currentInputName())
         }
         publisher.emitSnapshot()

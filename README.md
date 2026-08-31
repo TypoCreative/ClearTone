@@ -151,7 +151,7 @@ TC-ClearTone/
 npm run dev          # Start Electron dev server with hot reload
 npm run build        # Build for distribution
 npm run build:driver # Build the universal HAL driver and installer package
-npm run dist:mac     # Build a signed macOS DMG
+npm run dist:mac     # Build a macOS DMG (signed when credentials are available)
 npm run check        # Lint, typecheck, test, and production build
 ```
 
@@ -164,6 +164,18 @@ For macOS packaging, place `_dev-id-apple.p12` in the project root and run
 in an interactive terminal; set `CSC_KEY_PASSWORD` instead for CI or other
 non-interactive builds. You can set `CSC_LINK` explicitly to override root certificate
 detection. Certificate files are ignored by Git and are never bundled with the app.
+When no certificate is available, packaging produces an unsigned development build.
+
+The GitHub release workflow builds on native `macos-26-intel` and `macos-26`
+runners so the bundled Swift engine matches the x64 or arm64 DMG. Configure these
+repository secrets for signed releases:
+
+- `CSC_LINK`: base64-encoded Developer ID Application `.p12` certificate.
+- `CSC_KEY_PASSWORD`: password used when exporting the certificate.
+
+A manually dispatched workflow can create unsigned test DMGs without those secrets.
+A published GitHub Release requires `CSC_LINK` to prevent accidentally distributing
+an unsigned application.
 
 To notarize, configure either App Store Connect API credentials
 (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) or the Apple ID

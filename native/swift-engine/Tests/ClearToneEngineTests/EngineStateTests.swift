@@ -22,6 +22,19 @@ final class EngineStateTests: XCTestCase {
         }
     }
 
+    func testRefreshDisablesVirtualMicrophoneWhenDriverDisappears() {
+        let publisher = EngineStatePublisher()
+        let output = VirtualMicrophoneOutput()
+        let processor = RNNoiseProcessor(publisher: publisher, virtualOutput: output)
+
+        publisher.snapshot.virtualMicrophone.enabled = true
+        processor.refreshVirtualMicrophoneState()
+
+        if !publisher.snapshot.virtualMicrophone.available {
+            XCTAssertFalse(publisher.snapshot.virtualMicrophone.enabled)
+        }
+    }
+
     func testRNNoiseProcessesNormalizedAudioAndReportsMeasuredLatency() {
         let publisher = EngineStatePublisher()
         let output = VirtualMicrophoneOutput()

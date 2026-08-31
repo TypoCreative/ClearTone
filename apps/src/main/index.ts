@@ -43,6 +43,7 @@ let isQuitting = false;
 let quitCleanupStarted = false;
 let quitCleanupComplete = false;
 let restartAttempts = 0;
+let virtualMicrophoneOperation: Promise<void> = Promise.resolve();
 
 type PendingCommand = {
   resolve: () => void;
@@ -61,6 +62,8 @@ const MAX_ENGINE_BUFFER_CHARACTERS = 1_000_000;
 const DRIVER_AVAILABILITY_POLL_INTERVAL_MS = 2_000;
 const DRIVER_AVAILABILITY_MAX_POLLS = 90;
 const VIRTUAL_MICROPHONE_INSTALLER = "ClearToneVirtualMicrophone.pkg";
+const VIRTUAL_MICROPHONE_RETRY_DELAY_MS = 350;
+const VIRTUAL_MICROPHONE_MAX_ATTEMPTS = 3;
 const MACOS_MICROPHONE_SETTINGS_URL =
   "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 
@@ -336,6 +339,17 @@ function createTray(): void {
 
 function pushSnapshot(snapshot: EngineSnapshot): void {
   engineSnapshot = snapshot;
+  if (
+    appSettings.virtualMicrophoneEnabled &&
+    (
+      !snapshot.virtualMicrophone.available ||
+      (snapshot.phase === "error" && !snapshot.virtualMicrophone.enabled)
+    )
+  ) {
+    appSettings = { ...appSettings, virtualMicrophoneEnabled: false };
+    saveSettings(appSettings);
+    pushSettings();
+  }
   if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
     mainWindow.webContents.send("engine:snapshot", engineSnapshot);
   }
@@ -343,6 +357,58 @@ function pushSnapshot(snapshot: EngineSnapshot): void {
     popupWindow.webContents.send("engine:snapshot", engineSnapshot);
   }
   refreshTray();
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolveDelay) => {
+    const timer = setTimeout(resolveDelay, milliseconds);
+    timer.unref();
+  });
+}
+
+function isVirtualMicrophoneUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Virtual Microphone driver is not installed") ||
+    message.includes("Install ClearTone Virtual Microphone")
+  );
+}
+
+function persistVirtualMicrophoneSetting(enabled: boolean): void {
+  if (appSettings.virtualMicrophoneEnabled === enabled) return;
+  appSettings = { ...appSettings, virtualMicrophoneEnabled: enabled };
+  saveSettings(appSettings);
+  pushSettings();
+}
+
+async function setVirtualMicrophoneSafely(enabled: boolean): Promise<void> {
+  if (!enabled) {
+    await sendCommand({ type: "setVirtualMicrophone", enabled: false });
+    persistVirtualMicrophoneSetting(false);
+    return;
+  }
+
+  for (let attempt = 0; attempt < VIRTUAL_MICROPHONE_MAX_ATTEMPTS; attempt += 1) {
+    await sendCommand({ type: "listInputs" });
+    if (!engineSnapshot.virtualMicrophone.available) {
+      persistVirtualMicrophoneSetting(false);
+      return;
+    }
+
+    try {
+      await sendCommand({ type: "setVirtualMicrophone", enabled: true });
+      persistVirtualMicrophoneSetting(true);
+      return;
+    } catch (error) {
+      if (!isVirtualMicrophoneUnavailableError(error)) throw error;
+      persistVirtualMicrophoneSetting(false);
+      if (attempt + 1 < VIRTUAL_MICROPHONE_MAX_ATTEMPTS) {
+        await delay(VIRTUAL_MICROPHONE_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  await sendCommand({ type: "listInputs" }).catch(() => undefined);
 }
 
 function rejectPendingCommands(message: string): void {
@@ -401,7 +467,10 @@ async function applyStartupSettings(): Promise<void> {
     }
 
     if (appSettings.virtualMicrophoneEnabled && engineSnapshot.virtualMicrophone.available) {
-      await sendCommand({ type: "setVirtualMicrophone", enabled: true });
+      await setVirtualMicrophoneSafely(true);
+      if (!engineSnapshot.virtualMicrophone.enabled) {
+        await sendCommand({ type: "startProcessing" });
+      }
     } else {
       if (appSettings.virtualMicrophoneEnabled) {
         appSettings = { ...appSettings, virtualMicrophoneEnabled: false };
@@ -762,13 +831,11 @@ ipcMain.handle("engine:setVirtualMicrophone", async (event, enabled: boolean) =>
   if (typeof enabled !== "boolean") {
     throw new TypeError("Virtual microphone state must be a boolean.");
   }
-  if (enabled && !engineSnapshot.virtualMicrophone.available) {
-    throw new Error("Install ClearTone Virtual Microphone before turning it on.");
-  }
-  await sendCommand({ type: "setVirtualMicrophone", enabled });
-  appSettings = { ...appSettings, virtualMicrophoneEnabled: enabled };
-  saveSettings(appSettings);
-  pushSettings();
+  const operation = virtualMicrophoneOperation
+    .catch(() => undefined)
+    .then(() => setVirtualMicrophoneSafely(enabled));
+  virtualMicrophoneOperation = operation;
+  await operation;
 });
 
 ipcMain.handle("engine:installVirtualMicrophoneDriver", async (event) => {

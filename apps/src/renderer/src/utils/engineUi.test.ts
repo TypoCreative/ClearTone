@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialSnapshot } from "@contracts";
 import { deriveControlState, formatLatency, formatPercent } from "./engineUi";
+import { normalizeActionError } from "./runEngineAction";
 
 describe("engine UI formatting", () => {
   it("formats percentages and latency with units", () => {
@@ -18,5 +19,17 @@ describe("deriveControlState", () => {
     const snapshot = createInitialSnapshot();
     snapshot.phase = "processing";
     expect(deriveControlState(snapshot).canStop).toBe(true);
+  });
+});
+
+describe("normalizeActionError", () => {
+  it("removes Electron IPC implementation details", () => {
+    expect(
+      normalizeActionError(
+        new Error(
+          "Error invoking remote method 'engine:setVirtualMicrophone': Error: Driver unavailable."
+        )
+      )
+    ).toBe("Driver unavailable.");
   });
 });

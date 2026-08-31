@@ -6,12 +6,22 @@ on:
 
 jobs:
   verify:
-    runs-on: macos-14
+    # Package.swift requires Swift 6.2, which is provided by Xcode 26.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Select Xcode with Swift 6.2+
+        run: |
+          xcode="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$xcode" ]; then
+            echo "::error::Xcode 26 (Swift 6.2) not found on the runner"
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          swift --version
       - run: npm ci
       - run: npm run check

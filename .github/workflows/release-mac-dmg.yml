@@ -17,13 +17,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macos-26 ships Xcode 26 (Swift 6.2+). Older runners default to Swift 5.10.
-          - os: macos-26
+          - os: macos-26-intel
             arch: x64
-            swift_arch: x86_64
           - os: macos-26
             arch: arm64
-            swift_arch: arm64
+    env:
+      CLEARTONE_TARGET_ARCH: ${{ matrix.arch }}
+      # Store the base64-encoded .p12 and password as repository secrets.
+      # workflow_dispatch can still create an unsigned test build when omitted.
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -36,6 +39,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Require signing certificate for a published release
+        if: github.event_name == 'release'
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "::error::Missing CSC_LINK repository secret for signed release"
+            exit 1
+          fi
 
       - name: Select Xcode with Swift 6.2+
         run: |
@@ -54,17 +65,16 @@ jobs:
           swift --version
           head -n 1 native/swift-engine/Package.swift
 
-      - name: Build native engine (release)
-        run: |
-          cd native/swift-engine
-          swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}"
-          BIN_PATH="$(swift build -c release --disable-sandbox --arch "${{ matrix.swift_arch }}" --show-bin-path)"
-          mkdir -p ../../apps/resources/native
-          cp "$BIN_PATH/ClearToneEngine" ../../apps/resources/native/ClearToneEngine
-          file ../../apps/resources/native/ClearToneEngine
-
       - name: Build DMG
-        run: npm --workspace apps run dist:mac -- --${{ matrix.arch }}
+        run: npm --workspace apps run dist:mac
+
+      - name: Verify packaged architecture
+        run: |
+          file apps/resources/native/ClearToneEngine
+          case "${{ matrix.arch }}" in
+            x64) file apps/resources/native/ClearToneEngine | grep -q "x86_64" ;;
+            arm64) file apps/resources/native/ClearToneEngine | grep -q "arm64" ;;
+          esac
 
       - name: Upload DMG to Release
         if: github.event_name == 'release'

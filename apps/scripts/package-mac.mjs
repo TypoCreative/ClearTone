@@ -14,11 +14,7 @@ async function findRootCertificate() {
     (entry) => entry.isFile() && entry.name === rootCertificateName,
   )
 
-  if (!certificate) {
-    throw new Error(
-      `Missing macOS signing certificate: ${join(projectRoot, rootCertificateName)}. Add the file or set CSC_LINK explicitly.`,
-    )
-  }
+  if (!certificate) return undefined
 
   return join(projectRoot, certificate.name)
 }
@@ -113,24 +109,45 @@ async function main() {
   const rootCertificate = process.env.CSC_LINK ? undefined : await findRootCertificate()
   const certificate = process.env.CSC_LINK ?? rootCertificate
   const certificatePassword = await getCertificatePassword(rootCertificate)
+  const requestedArchitecture = process.env.CLEARTONE_TARGET_ARCH
+  const cliArchitecture = process.argv.includes('--x64')
+    ? 'x64'
+    : process.argv.includes('--arm64')
+      ? 'arm64'
+      : undefined
+  const targetArchitecture = requestedArchitecture ?? cliArchitecture
+
+  if (targetArchitecture && !['x64', 'arm64'].includes(targetArchitecture)) {
+    throw new Error(
+      `Unsupported CLEARTONE_TARGET_ARCH: ${targetArchitecture}. Expected x64 or arm64.`,
+    )
+  }
 
   if (process.env.CSC_LINK) {
     console.log('Using macOS signing certificate from CSC_LINK.')
   } else if (rootCertificate) {
     console.log(`Using macOS signing certificate: ${rootCertificate}`)
   } else {
-    console.warn('No local certificate selected; electron-builder will use its normal signing discovery.')
+    console.warn(
+      'No signing certificate selected; creating an unsigned build. Set CSC_LINK and CSC_KEY_PASSWORD for signed releases.',
+    )
   }
 
   if (process.argv.includes('--check-only')) return
 
   const builder = join(projectRoot, 'node_modules', '.bin', 'electron-builder')
-  const builderEnvironment = certificate ? { ...process.env, CSC_LINK: certificate } : { ...process.env }
+  const builderEnvironment = certificate
+    ? { ...process.env, CSC_LINK: certificate }
+    : { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
   if (certificatePassword !== undefined) {
     builderEnvironment.CSC_KEY_PASSWORD = certificatePassword
   }
 
-  const child = spawn(builder, ['--config', 'electron-builder.yml', '--mac', '--publish', 'never'], {
+  const builderArguments = ['--config', 'electron-builder.yml', '--mac']
+  if (targetArchitecture) builderArguments.push(`--${targetArchitecture}`)
+  builderArguments.push('--publish', 'never')
+
+  const child = spawn(builder, builderArguments, {
     cwd: appDirectory,
     env: builderEnvironment,
     stdio: 'inherit',

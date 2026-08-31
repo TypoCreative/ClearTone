@@ -78,7 +78,10 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
                 try virtualOutput.start()
                 publisher.snapshot.virtualMicrophone = virtualOutput.refreshState(enabled: true)
             } catch {
-                publisher.snapshot.virtualMicrophone = virtualOutput.refreshState(enabled: true)
+                processingQueue.sync {
+                    virtualMicrophoneEnabled = false
+                }
+                publisher.snapshot.virtualMicrophone = virtualOutput.refreshState(enabled: false)
                 publisher.snapshot.virtualMicrophone.statusMessage = error.localizedDescription
             }
         }
@@ -131,9 +134,17 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     }
 
     func refreshVirtualMicrophoneState() {
-        publisher.snapshot.virtualMicrophone = virtualOutput.refreshState(
+        var refreshedState = virtualOutput.refreshState(
             enabled: publisher.snapshot.virtualMicrophone.enabled
         )
+        if refreshedState.enabled && !refreshedState.available {
+            virtualOutput.stop()
+            processingQueue.sync {
+                virtualMicrophoneEnabled = false
+            }
+            refreshedState.enabled = false
+        }
+        publisher.snapshot.virtualMicrophone = refreshedState
     }
 
     /// Feed incoming audio samples into the processor.
