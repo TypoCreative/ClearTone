@@ -8,6 +8,8 @@ import { Switch } from "../components/ui/switch";
 import { TrayDeviceSelect } from "../components/TrayDeviceSelect";
 import { cn } from "../lib/utils";
 import { VirtualMicrophoneControl } from "../components/VirtualMicrophoneControl";
+import { VoicePresetSelect } from "../components/VoicePresetSelect";
+import { PerformancePanel } from "../components/PerformancePanel";
 import { ActionError } from "../components/ActionError";
 import { runEngineAction } from "../utils/runEngineAction";
 import { deriveControlState, formatDeviceMode, phaseLabels } from "../utils/engineUi";
@@ -92,7 +94,7 @@ export const TrayView = memo(function TrayView({
     <main
       ref={mainRef}
       className={cn(
-        "flex flex-col gap-4 rounded-[28px] border p-4 text-slate-100 shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur-3xl",
+        "flex flex-col gap-4 rounded-[28px] border p-4 text-slate-100 shadow-[0_18px_40px_rgba(0,0,0,0.35)]",
         "bg-[linear-gradient(180deg,rgb(55,60,75),rgb(26,30,42))]",
         "border-white/18"
       )}
@@ -111,7 +113,7 @@ export const TrayView = memo(function TrayView({
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
                 isProcessing
-                  ? "animate-pulse bg-emerald-300"
+                  ? "bg-emerald-300"
                   : isError
                     ? "bg-red-300"
                     : "bg-slate-300"
@@ -136,6 +138,7 @@ export const TrayView = memo(function TrayView({
           disabled={snapshot.inputs.length === 0}
         />
         <StrengthSlider snapshot={snapshot} variant="tray" />
+        <VoicePresetSelect snapshot={snapshot} variant="tray" />
         <VirtualMicrophoneControl snapshot={snapshot} variant="tray" />
       </div>
 
@@ -153,6 +156,16 @@ export const TrayView = memo(function TrayView({
           Live Metrics
         </div>
         <MetricsGrid snapshot={snapshot} loading={loading} variant="tray" />
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Performance
+        </div>
+        <PerformancePanel
+          active={snapshot.phase === "starting" || snapshot.phase === "processing"}
+          variant="tray"
+        />
       </div>
 
       <div className="space-y-3 border-t border-white/10 pt-3">

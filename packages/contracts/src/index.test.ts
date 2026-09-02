@@ -21,5 +21,6 @@ describe("createInitialSnapshot", () => {
     expect(snapshot.virtualMicrophone.available).toBe(false);
     expect(snapshot.metrics.droppedFrames).toBe(0);
     expect(snapshot.metrics.outputQueueFrames).toBe(0);
+    expect(snapshot.voicePreset).toBe("clear");
   });
 });

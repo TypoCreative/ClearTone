@@ -20,6 +20,8 @@ Zoom, Discord, OBS, or another app that follows the macOS default input.
 |---------|--------|
 | **AI Denoising** | RNNoise neural network from Mozilla/Xiph — 48kHz, 10ms frames |
 | **Adjustable strength** | 0–100% slider — subtle cleanup or aggressive noise removal |
+| **Voice finishing** | High-pass, adaptive suppression, dereverb-lite, voice EQ, AGC/compressor, and limiter |
+| **Voice profiles** | Natural, Clear, and Broadcast presets available in both app and tray |
 | **Measured latency** | Capture-to-processing latency and output queue depth reported live |
 | **Dual interface** | Full dashboard + compact tray popup (always one click away) |
 | **Device management** | Auto-detect all mics, follow system input, or lock to a specific device |
@@ -61,7 +63,7 @@ Zoom, Discord, OBS, or another app that follows the macOS default input.
 | IPC | stdin/stdout JSON lines | Typed command protocol |
 | Engine | Swift 6.2 + Core Audio | Mic capture, processing graph, device enumeration |
 | Virtual device | Core Audio Audio Server Plug-in (HAL) | Loopback output-to-input device for all macOS apps |
-| AI | RNNoise v0.2 (C library) | Frame-level denoising (480 samples = 10ms) |
+| AI/DSP | RNNoise v0.2 + native Swift DSP | Adaptive denoising and real-time voice finishing (480 samples = 10ms) |
 | Build | electron-vite, electron-builder, SPM | Dev server, DMG packaging |
 
 ---
@@ -100,7 +102,7 @@ Zoom, Discord, OBS, or another app that follows the macOS default input.
 ### Prerequisites
 
 - macOS 14+
-- Xcode 16+ (for Swift engine)
+- Xcode 26+ / Swift 6.2+ (for Swift engine)
 - Node.js 22+
 - npm 10+
 
@@ -159,12 +161,15 @@ The production build compiles the Swift engine and the universal virtual microph
 driver in release mode, then copies both into app resources before packaging.
 
 For macOS packaging, place `_dev-id-apple.p12` in the project root and run
-`npm run dist:mac`. ClearTone detects that certificate and passes it to
-`electron-builder`. For a password-protected certificate, the command prompts securely
-in an interactive terminal; set `CSC_KEY_PASSWORD` instead for CI or other
-non-interactive builds. You can set `CSC_LINK` explicitly to override root certificate
-detection. Certificate files are ignored by Git and are never bundled with the app.
-When no certificate is available, packaging produces an unsigned development build.
+`npm run dist:mac`. ClearTone imports that certificate into an isolated temporary
+keychain, signs the app, and removes the keychain after the build. For a
+password-protected certificate, the command prompts securely in an interactive
+terminal; set `CSC_KEY_PASSWORD` instead for CI or other non-interactive builds. You
+can set `CSC_LINK` explicitly to override root certificate detection. Certificate
+files are ignored by Git and are never bundled with the app. When no certificate is
+available, packaging produces an unsigned development build. An Apple Development
+identity can sign local test builds; public releases still require a Developer ID
+Application identity so they can be notarized and distributed outside the App Store.
 
 The GitHub release workflow builds on native `macos-26-intel` and `macos-26`
 runners so the bundled Swift engine matches the x64 or arm64 DMG. Configure these

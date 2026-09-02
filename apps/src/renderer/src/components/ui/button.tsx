@@ -12,9 +12,9 @@ const variantClassNames: Record<ButtonVariant, string> = {
   default:
     "relative overflow-hidden bg-linear-to-r from-primary to-cyan-300 text-primary-foreground shadow-(--glow-primary) hover:shadow-(--glow-primary-hover) hover:brightness-110",
   secondary:
-    "border border-border/60 bg-card/50 text-foreground shadow-sm backdrop-blur-md hover:border-primary/30 hover:bg-card/65",
+    "border border-border/60 bg-card/90 text-foreground shadow-sm hover:border-primary/30 hover:bg-card",
   outline:
-    "border border-border/60 bg-background/40 text-foreground backdrop-blur-md hover:bg-card/50 hover:border-primary/30",
+    "border border-border/60 bg-background/80 text-foreground hover:bg-card hover:border-primary/30",
   ghost: "text-foreground hover:bg-card/50 hover:text-foreground",
   destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
 };

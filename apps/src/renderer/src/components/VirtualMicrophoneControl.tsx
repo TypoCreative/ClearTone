@@ -1,4 +1,5 @@
 import { memo, useCallback, useState } from "react";
+import { QuestionMarkCircledIcon } from "@radix-ui/react-icons";
 import type { EngineSnapshot } from "@contracts";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
@@ -44,12 +45,26 @@ export const VirtualMicrophoneControl = memo(function VirtualMicrophoneControl({
         <div className="min-w-0">
           <div
             className={cn(
-              "font-semibold",
+              "flex items-center gap-1.5 font-semibold",
               variant === "tray" ? "text-[11px] text-slate-200" : "text-sm text-foreground"
             )}
-            id={`virtual-microphone-label-${variant}`}
           >
-            Virtual Microphone
+            <span id={`virtual-microphone-label-${variant}`}>Virtual Microphone</span>
+            <button
+              aria-describedby={`virtual-microphone-tooltip-${variant}`}
+              aria-label="About Virtual Microphone routing"
+              className="group relative rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+            >
+              <QuestionMarkCircledIcon aria-hidden="true" className="h-3.5 w-3.5" />
+              <span
+                className="invisible absolute bottom-full left-1/2 z-30 mb-2 w-48 -translate-x-1/2 rounded-md border border-border bg-popover px-2.5 py-2 text-left text-[10px] font-normal leading-4 text-popover-foreground opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100"
+                id={`virtual-microphone-tooltip-${variant}`}
+                role="tooltip"
+              >
+                Turn on to route cleaned audio automatically.
+              </span>
+            </button>
           </div>
           <p
             className={cn(
@@ -62,7 +77,7 @@ export const VirtualMicrophoneControl = memo(function VirtualMicrophoneControl({
           </p>
         </div>
         <Switch
-          aria-describedby={`virtual-microphone-description-${variant}`}
+          aria-describedby={`virtual-microphone-description-${variant} virtual-microphone-tooltip-${variant}`}
           aria-labelledby={`virtual-microphone-label-${variant}`}
           checked={state.enabled}
           disabled={busy || !state.available}

@@ -36,7 +36,13 @@ final class IPCCommandHandler: @unchecked Sendable {
 
     private func handle(command: EngineCommand) throws {
         switch command.type {
-        case "getStatus", "listInputs":
+        case "getStatus":
+            // Heartbeats only need the current snapshot. Device discovery and
+            // Core Audio enumeration are comparatively expensive and are
+            // triggered explicitly by listInputs or system audio listeners.
+            publisher.emitSnapshot()
+
+        case "listInputs":
             deviceManager.refreshAudioEnvironment(reason: "Status requested")
             publisher.refreshPermission()
             engineController.refreshVirtualMicrophoneState()
@@ -95,6 +101,12 @@ final class IPCCommandHandler: @unchecked Sendable {
             publisher.snapshot.lastError = nil
             publisher.emitSnapshot()
 
+        case "setVoicePreset":
+            guard let preset = command.voicePreset else {
+                throw EngineCommandError.invalidVoicePreset
+            }
+            engineController.setVoicePreset(preset)
+
         case "setVirtualMicrophone":
             guard let enabled = command.enabled else {
                 throw EngineCommandError.invalidVirtualMicrophoneState
@@ -116,6 +128,7 @@ enum EngineCommandError: LocalizedError {
     case invalidInputDevice
     case invalidStrength
     case invalidVirtualMicrophoneState
+    case invalidVoicePreset
     case unsupportedCommand(String)
 
     var errorDescription: String? {
@@ -126,6 +139,8 @@ enum EngineCommandError: LocalizedError {
             return "Denoise strength must be a number between 0 and 1."
         case .invalidVirtualMicrophoneState:
             return "Virtual microphone state is invalid."
+        case .invalidVoicePreset:
+            return "Voice preset must be Natural, Clear, or Broadcast."
         case .unsupportedCommand(let type):
             return "Unsupported engine command: \(type)"
         }

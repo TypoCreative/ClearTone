@@ -36,6 +36,7 @@ struct EngineSnapshot: Codable {
     var followSystemInput: Bool
     var inputs: [AudioInputDevice]
     var strength: Double
+    var voicePreset: VoicePreset
     var statusMessage: String
     var lastError: String?
     var metrics: EngineMetrics
@@ -46,6 +47,7 @@ struct EngineCommand: Codable {
     let type: String
     let inputId: String?
     let strength: Double?
+    let voicePreset: VoicePreset?
     let enabled: Bool?
     let requestId: String?
 }
@@ -75,6 +77,7 @@ final class EngineStatePublisher: @unchecked Sendable {
         followSystemInput: true,
         inputs: [],
         strength: 0.65,
+        voicePreset: .clear,
         statusMessage: "Starting native engine",
         lastError: nil,
         metrics: EngineMetrics(

@@ -7,6 +7,8 @@ import { StartStopControls } from "../components/StartStopControls";
 import { StrengthSlider } from "../components/StrengthSlider";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { VirtualMicrophoneControl } from "../components/VirtualMicrophoneControl";
+import { VoicePresetSelect } from "../components/VoicePresetSelect";
+import { PerformancePanel } from "../components/PerformancePanel";
 import { ActionError } from "../components/ActionError";
 import { Card, CardDescription, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
@@ -34,7 +36,7 @@ const StatusBadge = memo(function StatusBadge({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest backdrop-blur-md",
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest",
         isProcessing
           ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.25)]"
           : isError
@@ -48,7 +50,7 @@ const StatusBadge = memo(function StatusBadge({
         aria-hidden="true"
         className={cn(
           "h-2 w-2 rounded-full",
-          isProcessing && "animate-pulse bg-emerald-300",
+          isProcessing && "bg-emerald-300",
           isError ? "bg-red-300" : !isProcessing && "bg-slate-300"
         )}
       />
@@ -113,6 +115,7 @@ export const AppView = memo(function AppView({
               disabled={snapshot.inputs.length === 0}
             />
             <StrengthSlider snapshot={snapshot} />
+            <VoicePresetSelect snapshot={snapshot} />
             <VirtualMicrophoneControl snapshot={snapshot} />
           </Card>
         </section>
@@ -130,12 +133,21 @@ export const AppView = memo(function AppView({
           </Card>
         ) : null}
 
-        <section className="space-y-3">
+        <section className="space-y-2">
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live Engine Metrics</h2>
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-primary" />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live Engine Metrics</h2>
           </div>
           <MetricsGrid snapshot={snapshot} loading={loading} variant="app" />
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Performance
+          </h2>
+          <PerformancePanel
+            active={snapshot.phase === "starting" || snapshot.phase === "processing"}
+          />
         </section>
       </div>
       </main>

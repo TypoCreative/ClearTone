@@ -37,7 +37,7 @@ export const TrayDeviceSelect = memo(function TrayDeviceSelect({
         onChange={handleChange}
         disabled={disabled}
         className={cn(
-          "h-9 w-full rounded-xl border border-white/12 bg-white/8 px-3 text-[13px] font-medium text-white outline-none transition-colors backdrop-blur-xl",
+          "h-9 w-full rounded-xl border border-white/12 bg-white/10 px-3 text-[13px] font-medium text-white outline-none transition-colors",
           "focus-visible:border-white/30 focus-visible:bg-white/12 focus-visible:ring-2 focus-visible:ring-white/60",
           "disabled:cursor-not-allowed disabled:opacity-50"
         )}

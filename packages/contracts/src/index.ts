@@ -13,6 +13,8 @@ export type PermissionState =
   | "denied"
   | "restricted";
 
+export type VoicePreset = "natural" | "clear" | "broadcast";
+
 export interface AudioInputDevice {
   id: string;
   name: string;
@@ -30,6 +32,16 @@ export interface EngineMetrics {
   outputQueueFrames: number;
 }
 
+export interface PerformanceMetrics {
+  cpuPercent: number;
+  memoryMB: number;
+  gpuPercent: number;
+  gpuMemoryMB: number;
+  gpuAvailable: boolean;
+  processCount: number;
+  sampledAt: number;
+}
+
 export interface VirtualMicrophoneState {
   enabled: boolean;
   available: boolean;
@@ -42,6 +54,7 @@ export interface AppSettings {
   trayOnlyMode: boolean;
   virtualMicrophoneEnabled: boolean;
   strength: number;
+  voicePreset: VoicePreset;
   selectedInputId: string | null;
   followSystemInput: boolean;
 }
@@ -54,6 +67,7 @@ export interface EngineSnapshot {
   followSystemInput: boolean;
   inputs: AudioInputDevice[];
   strength: number;
+  voicePreset: VoicePreset;
   statusMessage: string;
   lastError: string | null;
   metrics: EngineMetrics;
@@ -68,6 +82,7 @@ export type EngineCommand =
   | { type: "startProcessing"; requestId?: string }
   | { type: "stopProcessing"; requestId?: string }
   | { type: "setStrength"; strength: number; requestId?: string }
+  | { type: "setVoicePreset"; voicePreset: VoicePreset; requestId?: string }
   | { type: "setVirtualMicrophone"; enabled: boolean; requestId?: string };
 
 export interface EngineAcknowledgement {
@@ -86,6 +101,7 @@ export function createInitialSnapshot(): EngineSnapshot {
     followSystemInput: true,
     inputs: [],
     strength: 0.65,
+    voicePreset: "clear",
     statusMessage: "Starting native engine",
     lastError: null,
     metrics: {

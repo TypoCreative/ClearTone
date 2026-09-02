@@ -1,7 +1,14 @@
-import type { AppSettings, AudioInputDevice, EngineSnapshot } from "@contracts";
+import type {
+  AppSettings,
+  AudioInputDevice,
+  EngineSnapshot,
+  PerformanceMetrics,
+  VoicePreset
+} from "@contracts";
 
 interface ClearToneApi {
   getStatus(): Promise<EngineSnapshot>;
+  getPerformanceMetrics(): Promise<PerformanceMetrics>;
   listInputs(): Promise<AudioInputDevice[]>;
   selectInput(inputId: string): Promise<void>;
   followSystemInput(): Promise<void>;
@@ -9,6 +16,7 @@ interface ClearToneApi {
   stopProcessing(): Promise<void>;
   requestMicrophoneAccess(): Promise<void>;
   setStrength(strength: number): Promise<void>;
+  setVoicePreset(voicePreset: VoicePreset): Promise<void>;
   setVirtualMicrophone(enabled: boolean): Promise<void>;
   installVirtualMicrophoneDriver(): Promise<void>;
   onSnapshot(listener: (snapshot: EngineSnapshot) => void): () => void;

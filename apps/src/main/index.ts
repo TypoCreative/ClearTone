@@ -22,7 +22,8 @@ import {
   type AudioInputDevice,
   type EngineCommand,
   type EngineAcknowledgement,
-  type EngineSnapshot
+  type EngineSnapshot,
+  type PerformanceMetrics
 } from "@contracts";
 import { loadSettings, saveSettings } from "./settings";
 
@@ -44,6 +45,10 @@ let quitCleanupStarted = false;
 let quitCleanupComplete = false;
 let restartAttempts = 0;
 let virtualMicrophoneOperation: Promise<void> = Promise.resolve();
+let cachedPerformanceMetrics: PerformanceMetrics | null = null;
+let performanceMetricsRequest: Promise<PerformanceMetrics> | null = null;
+let lastTrayTooltip: string | null = null;
+let rendererSessionConfigured = false;
 
 type PendingCommand = {
   resolve: () => void;
@@ -54,9 +59,11 @@ type PendingCommand = {
 const pendingCommands = new Map<string, PendingCommand>();
 const execFileAsync = promisify(execFile);
 
-const POPUP_MEMORY_CLEANUP_DELAY_MS = 10_000;
+const POPUP_MEMORY_CLEANUP_DELAY_MS = 1_500;
+const PERFORMANCE_METRICS_CACHE_MS = 10_000;
 const COMMAND_TIMEOUT_MS = 5_000;
-const HEARTBEAT_INTERVAL_MS = 5_000;
+const ACTIVE_HEARTBEAT_INTERVAL_MS = 5_000;
+const IDLE_HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_ENGINE_RESTART_DELAY_MS = 30_000;
 const MAX_ENGINE_BUFFER_CHARACTERS = 1_000_000;
 const DRIVER_AVAILABILITY_POLL_INTERVAL_MS = 2_000;
@@ -66,6 +73,79 @@ const VIRTUAL_MICROPHONE_RETRY_DELAY_MS = 350;
 const VIRTUAL_MICROPHONE_MAX_ATTEMPTS = 3;
 const MACOS_MICROPHONE_SETTINGS_URL =
   "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+
+// ClearTone renders a small, mostly static control surface. Software compositing
+// avoids keeping Chromium's hardware-accelerated GPU context resident while the
+// app spends most of its lifetime hidden in the menu bar.
+app.disableHardwareAcceleration();
+// Both windows contain trusted local ClearTone UI. Sharing one renderer caps
+// the peak process count when the main window and tray controls overlap.
+app.commandLine.appendSwitch("renderer-process-limit", "1");
+
+function configureRendererSession(): void {
+  if (rendererSessionConfigured) return;
+  rendererSessionConfigured = true;
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+}
+
+async function collectPerformanceMetrics(): Promise<PerformanceMetrics> {
+  const appMetrics = app.getAppMetrics();
+  const gpuMetrics = appMetrics.filter((metric) => metric.type === "GPU");
+  let cpuPercent = appMetrics.reduce((total, metric) => total + metric.cpu.percentCPUUsage, 0);
+  let memoryKB = appMetrics.reduce((total, metric) => total + metric.memory.workingSetSize, 0);
+
+  if (nativeEngine?.pid) {
+    try {
+      const { stdout } = await execFileAsync(
+        "/bin/ps",
+        ["-p", String(nativeEngine.pid), "-o", "%cpu=,rss="],
+        { maxBuffer: 4 * 1024, timeout: 1_000 }
+      );
+      const [nativeCpu, nativeMemoryKB] = stdout.trim().split(/\s+/).map(Number);
+      if (Number.isFinite(nativeCpu)) cpuPercent += nativeCpu;
+      if (Number.isFinite(nativeMemoryKB)) memoryKB += nativeMemoryKB;
+    } catch {
+      // The native process may exit between sampling and ps; Electron metrics remain valid.
+    }
+  }
+
+  return {
+    cpuPercent,
+    memoryMB: memoryKB / 1024,
+    gpuPercent: gpuMetrics.reduce(
+      (total, metric) => total + metric.cpu.percentCPUUsage,
+      0
+    ),
+    gpuMemoryMB:
+      gpuMetrics.reduce((total, metric) => total + metric.memory.workingSetSize, 0) / 1024,
+    gpuAvailable: gpuMetrics.length > 0,
+    processCount: appMetrics.length + (nativeEngine?.pid ? 1 : 0),
+    sampledAt: Date.now()
+  };
+}
+
+function getPerformanceMetrics(): Promise<PerformanceMetrics> {
+  if (
+    cachedPerformanceMetrics &&
+    Date.now() - cachedPerformanceMetrics.sampledAt < PERFORMANCE_METRICS_CACHE_MS
+  ) {
+    return Promise.resolve(cachedPerformanceMetrics);
+  }
+
+  if (performanceMetricsRequest) return performanceMetricsRequest;
+
+  performanceMetricsRequest = collectPerformanceMetrics()
+    .then((metrics) => {
+      cachedPerformanceMetrics = metrics;
+      return metrics;
+    })
+    .finally(() => {
+      performanceMetricsRequest = null;
+    });
+  return performanceMetricsRequest;
+}
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
@@ -198,6 +278,7 @@ function ensurePopupWindow(): BrowserWindow {
     return popupWindow;
   }
 
+  configureRendererSession();
   popupWindow = new BrowserWindow({
     width: 360,
     height: 260,
@@ -218,7 +299,9 @@ function ensurePopupWindow(): BrowserWindow {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: true
     }
   });
   secureWindow(popupWindow);
@@ -312,7 +395,10 @@ function refreshTray(): void {
   const canStop =
     engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
 
-  tray.setToolTip(`ClearTone · ${canStop ? "On" : "Off"}`);
+  const tooltip = `ClearTone · ${canStop ? "On" : "Off"}`;
+  if (tooltip === lastTrayTooltip) return;
+  tray.setToolTip(tooltip);
+  lastTrayTooltip = tooltip;
 }
 
 function createTray(): void {
@@ -338,7 +424,13 @@ function createTray(): void {
 }
 
 function pushSnapshot(snapshot: EngineSnapshot): void {
+  const wasActive =
+    engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
+  const isActive = snapshot.phase === "starting" || snapshot.phase === "processing";
   engineSnapshot = snapshot;
+  if (heartbeatTimer && wasActive !== isActive) {
+    startHeartbeat();
+  }
   if (
     appSettings.virtualMicrophoneEnabled &&
     (
@@ -456,6 +548,7 @@ function sendCommand(command: EngineCommand): Promise<void> {
 async function applyStartupSettings(): Promise<void> {
   try {
     await sendCommand({ type: "setStrength", strength: appSettings.strength });
+    await sendCommand({ type: "setVoicePreset", voicePreset: appSettings.voicePreset });
     if (
       !appSettings.followSystemInput &&
       appSettings.selectedInputId &&
@@ -638,17 +731,30 @@ function scheduleEngineRestart(): void {
 }
 
 function startHeartbeat(): void {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  heartbeatTimer = setInterval(() => {
-    if (!nativeEngine) return;
-    void sendCommand({ type: "getStatus" }).catch(() => {
-      nativeEngine?.kill();
-    });
-  }, HEARTBEAT_INTERVAL_MS);
-  heartbeatTimer.unref();
+  if (heartbeatTimer) clearTimeout(heartbeatTimer);
+
+  const scheduleHeartbeat = () => {
+    const isActive =
+      engineSnapshot.phase === "starting" || engineSnapshot.phase === "processing";
+    heartbeatTimer = setTimeout(() => {
+      heartbeatTimer = null;
+      if (!nativeEngine || isQuitting) return;
+      void sendCommand({ type: "getStatus" })
+        .catch(() => {
+          nativeEngine?.kill();
+        })
+        .finally(() => {
+          if (!isQuitting) scheduleHeartbeat();
+        });
+    }, isActive ? ACTIVE_HEARTBEAT_INTERVAL_MS : IDLE_HEARTBEAT_INTERVAL_MS);
+    heartbeatTimer.unref();
+  };
+
+  scheduleHeartbeat();
 }
 
 function createWindow(): void {
+  configureRendererSession();
   const preloadPath = join(__dirname, "../preload/index.js");
   const windowIconPath = createWindowIconPath();
   mainWindow = new BrowserWindow({
@@ -663,7 +769,9 @@ function createWindow(): void {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: true
     }
   });
   secureWindow(mainWindow);
@@ -681,9 +789,6 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return;
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false);
-  });
   if (!appSettings.trayOnlyMode) {
     createWindow();
   }
@@ -733,7 +838,7 @@ app.on("before-quit", (event) => {
     engineRestartTimer = null;
   }
   if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
+    clearTimeout(heartbeatTimer);
     heartbeatTimer = null;
   }
   if (engineStableTimer) {
@@ -826,6 +931,17 @@ ipcMain.handle("engine:setStrength", async (event, strength: number) => {
   saveSettings(appSettings);
 });
 
+ipcMain.handle("engine:setVoicePreset", async (event, voicePreset: string) => {
+  assertTrustedIpc(event);
+  if (voicePreset !== "natural" && voicePreset !== "clear" && voicePreset !== "broadcast") {
+    throw new TypeError("Voice preset must be Natural, Clear, or Broadcast.");
+  }
+  await sendCommand({ type: "setVoicePreset", voicePreset });
+  appSettings = { ...appSettings, voicePreset };
+  saveSettings(appSettings);
+  pushSettings();
+});
+
 ipcMain.handle("engine:setVirtualMicrophone", async (event, enabled: boolean) => {
   assertTrustedIpc(event);
   if (typeof enabled !== "boolean") {
@@ -911,6 +1027,11 @@ ipcMain.handle("app:getSettings", async (event): Promise<AppSettings> => {
   return appSettings;
 });
 
+ipcMain.handle("app:getPerformanceMetrics", async (event): Promise<PerformanceMetrics> => {
+  assertTrustedIpc(event);
+  return getPerformanceMetrics();
+});
+
 ipcMain.handle("app:setTrayOnlyMode", async (event, enabled: boolean) => {
   assertTrustedIpc(event);
   if (typeof enabled !== "boolean") {
@@ -920,7 +1041,18 @@ ipcMain.handle("app:setTrayOnlyMode", async (event, enabled: boolean) => {
   saveSettings(appSettings);
 
   if (enabled) {
-    mainWindow?.hide();
+    const windowToRelease = mainWindow;
+    windowToRelease?.hide();
+    const releaseTimer = setTimeout(() => {
+      if (
+        appSettings.trayOnlyMode &&
+        windowToRelease &&
+        !windowToRelease.isDestroyed()
+      ) {
+        windowToRelease.destroy();
+      }
+    }, 250);
+    releaseTimer.unref();
   } else {
     ensureWindow();
   }

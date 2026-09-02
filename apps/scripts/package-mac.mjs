@@ -1,7 +1,9 @@
-import { readdir } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
+import { tmpdir } from 'node:os'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const appDirectory = resolve(scriptDirectory, '..')
@@ -30,6 +32,178 @@ function certificateAcceptsPassword(certificate, password) {
   )
 
   return result.status === 0
+}
+
+function runSecurity(args, errorMessage, { captureOutput = false, allowFailure = false } = {}) {
+  const result = spawnSync('/usr/bin/security', args, {
+    encoding: captureOutput ? 'utf8' : undefined,
+    stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'ignore',
+  })
+
+  if (result.status !== 0 && !allowFailure) {
+    throw new Error(errorMessage)
+  }
+
+  return captureOutput ? result.stdout ?? '' : ''
+}
+
+function getUserKeychains() {
+  const output = runSecurity(
+    ['list-keychains', '-d', 'user'],
+    'Could not read the macOS user keychain list.',
+    { captureOutput: true },
+  )
+
+  return output
+    .split('\n')
+    .map((line) => line.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean)
+}
+
+function getIdentityNames(output) {
+  return output
+    .split('\n')
+    .map((line) => line.match(/"([^"]+)"/)?.[1])
+    .filter(Boolean)
+}
+
+function selectSigningIdentity(identityNames) {
+  const priorities = [
+    'Developer ID Application:',
+    'Apple Development:',
+    'Mac Developer:',
+    'Apple Distribution:',
+  ]
+
+  for (const prefix of priorities) {
+    const identity = identityNames.find((name) => name.startsWith(prefix))
+    if (identity) return identity
+  }
+
+  return identityNames[0]
+}
+
+async function createSigningKeychain(
+  certificate,
+  certificatePassword,
+  { requireDeveloperId = false } = {},
+) {
+  const directory = await mkdtemp(join(tmpdir(), 'cleartone-signing-'))
+  const keychain = join(directory, 'ClearTone-signing.keychain-db')
+  const keychainPassword = randomBytes(32).toString('base64url')
+  const originalKeychains = getUserKeychains()
+  let searchListChanged = false
+
+  const cleanup = async () => {
+    if (searchListChanged && originalKeychains.length > 0) {
+      runSecurity(
+        ['list-keychains', '-d', 'user', '-s', ...originalKeychains],
+        'Could not restore the macOS user keychain list.',
+        { allowFailure: true },
+      )
+    }
+
+    runSecurity(['delete-keychain', keychain], 'Could not delete the temporary signing keychain.', {
+      allowFailure: true,
+    })
+    await rm(directory, { recursive: true, force: true })
+  }
+
+  try {
+    runSecurity(
+      ['create-keychain', '-p', keychainPassword, keychain],
+      'Could not create the temporary ClearTone signing keychain.',
+    )
+    runSecurity(
+      ['unlock-keychain', '-p', keychainPassword, keychain],
+      'Could not unlock the temporary ClearTone signing keychain.',
+    )
+    runSecurity(
+      ['set-keychain-settings', '-lut', '21600', keychain],
+      'Could not configure the temporary ClearTone signing keychain.',
+    )
+    runSecurity(
+      [
+        'import',
+        certificate,
+        '-k',
+        keychain,
+        '-P',
+        certificatePassword ?? '',
+        '-T',
+        '/usr/bin/codesign',
+        '-T',
+        '/usr/bin/productbuild',
+      ],
+      'The .p12 could not be imported. Re-export it with its private key and try again.',
+    )
+    runSecurity(
+      [
+        'set-key-partition-list',
+        '-S',
+        'apple-tool:,apple:',
+        '-s',
+        '-k',
+        keychainPassword,
+        keychain,
+      ],
+      'Could not grant codesign access to the temporary ClearTone signing keychain.',
+    )
+
+    runSecurity(
+      ['list-keychains', '-d', 'user', '-s', keychain, ...originalKeychains],
+      'Could not add the temporary ClearTone signing keychain to the search list.',
+    )
+    searchListChanged = true
+
+    const identities = runSecurity(
+      ['find-identity', '-v', '-p', 'codesigning', keychain],
+      'Could not inspect the imported signing identity.',
+      { captureOutput: true },
+    )
+    const identityNames = getIdentityNames(identities)
+    const identityName = selectSigningIdentity(identityNames)
+
+    if (!identityName) {
+      const importedIdentities = getIdentityNames(
+        runSecurity(
+          ['find-identity', '-p', 'codesigning', keychain],
+          'Could not inspect the imported signing identity.',
+          { captureOutput: true },
+        ),
+      )
+      const foundIdentity = importedIdentities[0]
+      throw new Error(
+        foundIdentity
+          ? `The imported signing identity is not valid or trusted: ${foundIdentity}`
+          : 'The .p12 does not contain a valid code-signing identity with its private key.',
+      )
+    }
+
+    const isDeveloperId = identityName.startsWith('Developer ID Application:')
+    if (requireDeveloperId && !isDeveloperId) {
+      throw new Error(
+        `A published build requires Developer ID Application, but the .p12 contains: ${identityName}`,
+      )
+    }
+
+    if (!isDeveloperId) {
+      console.warn(
+        `Using ${identityName} for a local development build. This DMG cannot be notarized for public distribution.`,
+      )
+    }
+
+    const identityQualifier = identityName.includes(':')
+      ? identityName.slice(identityName.indexOf(':') + 1).trim()
+      : identityName
+    const usesDevelopmentSigning =
+      identityName.startsWith('Apple Development:') || identityName.startsWith('Mac Developer:')
+
+    return { keychain, identityQualifier, usesDevelopmentSigning, cleanup }
+  } catch (error) {
+    await cleanup()
+    throw error
+  }
 }
 
 async function promptForPassword() {
@@ -136,37 +310,56 @@ async function main() {
   if (process.argv.includes('--check-only')) return
 
   const builder = join(projectRoot, 'node_modules', '.bin', 'electron-builder')
-  const builderEnvironment = certificate
-    ? { ...process.env, CSC_LINK: certificate }
-    : { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
-  if (certificatePassword !== undefined) {
-    builderEnvironment.CSC_KEY_PASSWORD = certificatePassword
+  const builderEnvironment = { ...process.env }
+  let signingKeychain
+
+  if (rootCertificate) {
+    console.log('Preparing an isolated ClearTone signing keychain...')
+    signingKeychain = await createSigningKeychain(rootCertificate, certificatePassword, {
+      requireDeveloperId: process.env.CLEARTONE_REQUIRE_DEVELOPER_ID === 'true',
+    })
+    delete builderEnvironment.CSC_LINK
+    delete builderEnvironment.CSC_KEY_PASSWORD
+    builderEnvironment.CSC_KEYCHAIN = signingKeychain.keychain
+    builderEnvironment.CSC_NAME = signingKeychain.identityQualifier
+  } else if (!certificate) {
+    builderEnvironment.CSC_IDENTITY_AUTO_DISCOVERY = 'false'
   }
 
   const builderArguments = ['--config', 'electron-builder.yml', '--mac']
   if (targetArchitecture) builderArguments.push(`--${targetArchitecture}`)
+  if (signingKeychain?.usesDevelopmentSigning) {
+    builderArguments.push('--config.mac.type=development')
+  }
   builderArguments.push('--publish', 'never')
 
-  const child = spawn(builder, builderArguments, {
-    cwd: appDirectory,
-    env: builderEnvironment,
-    stdio: 'inherit',
-  })
+  try {
+    const result = await new Promise((resolveChild, rejectChild) => {
+      const child = spawn(builder, builderArguments, {
+        cwd: appDirectory,
+        env: builderEnvironment,
+        stdio: 'inherit',
+      })
 
-  child.on('error', (error) => {
-    console.error(`Could not start electron-builder: ${error.message}`)
-    process.exitCode = 1
-  })
+      child.once('error', rejectChild)
+      child.once('exit', (code, signal) => resolveChild({ code, signal }))
+    })
 
-  child.on('exit', (code, signal) => {
-    if (signal) {
-      console.error(`electron-builder stopped after receiving ${signal}`)
+    if (result.signal) {
+      console.error(`electron-builder stopped after receiving ${result.signal}`)
       process.exitCode = 1
       return
     }
 
-    process.exitCode = code ?? 1
-  })
+    process.exitCode = result.code ?? 1
+  } catch (error) {
+    console.error(
+      `Could not start electron-builder: ${error instanceof Error ? error.message : error}`,
+    )
+    process.exitCode = 1
+  } finally {
+    await signingKeychain?.cleanup()
+  }
 }
 
 main().catch((error) => {

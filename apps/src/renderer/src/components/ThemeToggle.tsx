@@ -14,7 +14,7 @@ export function ThemeToggle({ compact = false }: Props) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-full border border-border/60 bg-card/50 backdrop-blur-md",
+        "flex items-center gap-2 rounded-full border border-border/60 bg-card/90",
         compact ? "px-2.5 py-1" : "px-3 py-1.5"
       )}
     >

@@ -3,6 +3,21 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
+private final class PooledAudioBuffer: @unchecked Sendable {
+    let pcm: AVAudioPCMBuffer
+
+    init?(
+        format: AVAudioFormat,
+        frameCapacity: AVAudioFrameCount
+    ) {
+        guard let buffer = AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: frameCapacity
+        ) else { return nil }
+        pcm = buffer
+    }
+}
+
 /// Routes processed mono PCM to the output side of the ClearTone loopback device.
 /// The device's input side is what conferencing apps see as a microphone.
 final class VirtualMicrophoneOutput: @unchecked Sendable {
@@ -19,6 +34,8 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
     )!
     private let stateLock = NSLock()
     private let maximumQueuedBuffers = 8
+    private let outputFrameCapacity: AVAudioFrameCount = 480
+    private var availableBuffers: [PooledAudioBuffer] = []
     private var queuedBuffers = 0
     private var configuredDeviceID: AudioDeviceID?
     private var running = false
@@ -65,6 +82,7 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         engine.prepare()
         try engine.start()
         player.play()
+        prepareBufferPool()
         configuredDeviceID = device.id
         running = true
     }
@@ -75,6 +93,7 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         engine.stop()
         stateLock.lock()
         queuedBuffers = 0
+        availableBuffers.removeAll(keepingCapacity: false)
         stateLock.unlock()
         configuredDeviceID = nil
         running = false
@@ -84,27 +103,17 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
     func enqueue(_ samples: [Float]) -> Int? {
         guard running, !samples.isEmpty else { return 0 }
 
-        stateLock.lock()
-        guard queuedBuffers < maximumQueuedBuffers else {
-            stateLock.unlock()
-            return nil
-        }
-        queuedBuffers += 1
-        let queueDepth = queuedBuffers
-        stateLock.unlock()
-
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(samples.count)
-        ), let destination = buffer.floatChannelData?[0] else {
-            decrementQueueDepth()
+        guard let pooledBuffer = acquireBuffer(frameCount: AVAudioFrameCount(samples.count)),
+              let destination = pooledBuffer.pcm.floatChannelData?[0] else {
             return nil
         }
 
+        let buffer = pooledBuffer.pcm
         buffer.frameLength = AVAudioFrameCount(samples.count)
         destination.update(from: samples, count: samples.count)
-        player.scheduleBuffer(buffer) { [weak self] in
-            self?.decrementQueueDepth()
+        let queueDepth = currentQueueDepth
+        player.scheduleBuffer(buffer) { [weak self, pooledBuffer] in
+            self?.releaseBuffer(pooledBuffer)
         }
         return queueDepth
     }
@@ -115,15 +124,51 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         return queuedBuffers
     }
 
-    private func decrementQueueDepth() {
+    private func prepareBufferPool() {
+        stateLock.lock()
+        if availableBuffers.isEmpty {
+            availableBuffers.reserveCapacity(maximumQueuedBuffers)
+            for _ in 0..<maximumQueuedBuffers {
+                if let buffer = PooledAudioBuffer(
+                    format: format,
+                    frameCapacity: outputFrameCapacity
+                ) {
+                    availableBuffers.append(buffer)
+                }
+            }
+        }
+        stateLock.unlock()
+    }
+
+    private func acquireBuffer(frameCount: AVAudioFrameCount) -> PooledAudioBuffer? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard running, queuedBuffers < maximumQueuedBuffers else { return nil }
+
+        let buffer: PooledAudioBuffer?
+        if let reusable = availableBuffers.popLast(), reusable.pcm.frameCapacity >= frameCount {
+            buffer = reusable
+        } else {
+            buffer = PooledAudioBuffer(format: format, frameCapacity: frameCount)
+        }
+        guard buffer != nil else { return nil }
+        queuedBuffers += 1
+        return buffer
+    }
+
+    private func releaseBuffer(_ buffer: PooledAudioBuffer) {
         stateLock.lock()
         queuedBuffers = max(0, queuedBuffers - 1)
+        buffer.pcm.frameLength = 0
+        if running && availableBuffers.count < maximumQueuedBuffers {
+            availableBuffers.append(buffer)
+        }
         stateLock.unlock()
     }
 
     private func statusMessage(enabled: Bool, available: Bool) -> String {
         if !available { return "ClearTone Virtual Microphone driver is not installed" }
-        if !enabled { return "Ready — turn on to route cleaned audio automatically" }
+        if !enabled { return "Ready" }
         return "Routing cleaned audio to ClearTone Virtual Microphone"
     }
 

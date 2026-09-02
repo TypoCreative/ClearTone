@@ -8,7 +8,7 @@ export function Card({ className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/10 bg-card/60 text-card-foreground shadow-(--card-glow) backdrop-blur-xl transition-[background-color,box-shadow] duration-300 hover:bg-card/70 hover:shadow-(--card-glow-hover)",
+        "relative overflow-hidden rounded-2xl border border-white/10 bg-card/90 text-card-foreground shadow-(--card-glow) transition-colors duration-200 hover:bg-card",
         "before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-linear-to-r before:from-transparent before:via-primary/30 before:to-transparent",
         className
       )}

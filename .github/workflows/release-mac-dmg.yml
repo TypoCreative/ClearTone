@@ -23,6 +23,7 @@ jobs:
             arch: arm64
     env:
       CLEARTONE_TARGET_ARCH: ${{ matrix.arch }}
+      CLEARTONE_REQUIRE_DEVELOPER_ID: ${{ github.event_name == 'release' }}
       # Store the base64-encoded .p12 and password as repository secrets.
       # workflow_dispatch can still create an unsigned test build when omitted.
       CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -66,7 +67,15 @@ jobs:
           head -n 1 native/swift-engine/Package.swift
 
       - name: Build DMG
-        run: npm --workspace apps run dist:mac
+        run: |
+          trap 'rm -f _dev-id-apple.p12' EXIT
+
+          if [ -n "$CSC_LINK" ]; then
+            node -e "require('fs').writeFileSync('_dev-id-apple.p12', Buffer.from(process.env.CSC_LINK, 'base64'))"
+            chmod 600 _dev-id-apple.p12
+          fi
+
+          env -u CSC_LINK npm --workspace apps run dist:mac
 
       - name: Verify packaged architecture
         run: |

@@ -86,3 +86,20 @@ For reproducible benchmarks:
 2. Expose stats via the existing `EngineMetrics` struct
 3. Run A/B comparisons: raw vs denoised recordings
 4. Log benchmark data to file for analysis (optional debug toggle)
+
+## Current Automated Baseline
+
+Measured on 31 August 2026 using a debug Swift test build on Apple Silicon:
+
+| Check | Result |
+|-------|--------|
+| Voice-finishing throughput | 500 × 10ms frames in ~122ms |
+| Average DSP time | ~0.244ms per 10ms frame |
+| Real-time frame budget used | ~2.44% |
+| Limiter ceiling | Output remained at or below 0.901 in Broadcast preset |
+| DC/low-frequency rejection | Constant input settled below 0.1 mean amplitude |
+| Adaptive suppression | Silence receives stronger suppression than active speech |
+
+These are synthetic regression measurements, not a perceptual MOS/PESQ/POLQA score.
+Before claiming studio-grade quality, run the quiet-room, office, cafe, and fan datasets
+through an A/B listening panel and a reference-based SNR/STOI benchmark.

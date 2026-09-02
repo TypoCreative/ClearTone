@@ -1,8 +1,16 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings, AudioInputDevice, EngineSnapshot } from "@contracts";
+import type {
+  AppSettings,
+  AudioInputDevice,
+  EngineSnapshot,
+  PerformanceMetrics,
+  VoicePreset
+} from "@contracts";
 
 const clearToneApi = {
   getStatus: (): Promise<EngineSnapshot> => ipcRenderer.invoke("engine:getStatus"),
+  getPerformanceMetrics: (): Promise<PerformanceMetrics> =>
+    ipcRenderer.invoke("app:getPerformanceMetrics"),
   listInputs: (): Promise<AudioInputDevice[]> => ipcRenderer.invoke("engine:listInputs"),
   selectInput: (inputId: string): Promise<void> =>
     ipcRenderer.invoke("engine:selectInput", inputId),
@@ -13,6 +21,8 @@ const clearToneApi = {
     ipcRenderer.invoke("engine:requestMicrophoneAccess"),
   setStrength: (strength: number): Promise<void> =>
     ipcRenderer.invoke("engine:setStrength", strength),
+  setVoicePreset: (voicePreset: VoicePreset): Promise<void> =>
+    ipcRenderer.invoke("engine:setVoicePreset", voicePreset),
   setVirtualMicrophone: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke("engine:setVirtualMicrophone", enabled),
   installVirtualMicrophoneDriver: (): Promise<void> =>

@@ -1,12 +1,13 @@
 import { app } from "electron";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { AppSettings } from "@contracts";
+import type { AppSettings, VoicePreset } from "@contracts";
 
 const defaultSettings: AppSettings = {
   trayOnlyMode: false,
   virtualMicrophoneEnabled: false,
   strength: 0.65,
+  voicePreset: "clear",
   selectedInputId: null,
   followSystemInput: true
 };
@@ -24,6 +25,12 @@ export function loadSettings(): AppSettings {
 
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<AppSettings>;
+    const voicePreset: VoicePreset =
+      parsed.voicePreset === "natural" ||
+      parsed.voicePreset === "clear" ||
+      parsed.voicePreset === "broadcast"
+        ? parsed.voicePreset
+        : defaultSettings.voicePreset;
     return {
       trayOnlyMode: typeof parsed.trayOnlyMode === "boolean" ? parsed.trayOnlyMode : defaultSettings.trayOnlyMode,
       virtualMicrophoneEnabled:
@@ -34,6 +41,7 @@ export function loadSettings(): AppSettings {
         typeof parsed.strength === "number" && Number.isFinite(parsed.strength)
           ? Math.max(0, Math.min(1, parsed.strength))
           : defaultSettings.strength,
+      voicePreset,
       selectedInputId: typeof parsed.selectedInputId === "string" ? parsed.selectedInputId : null,
       followSystemInput:
         typeof parsed.followSystemInput === "boolean"

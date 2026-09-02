@@ -26,6 +26,7 @@ final class AudioEngineController: @unchecked Sendable {
         interleaved: false
     )!
     private var inputConverter: AVAudioConverter?
+    private var convertedBuffer: AVAudioPCMBuffer?
     private var isCapturing = false
     private var isTapInstalled = false
     private var captureGeneration = 0
@@ -159,6 +160,14 @@ final class AudioEngineController: @unchecked Sendable {
         noiseProcessor.setStrength(value)
     }
 
+    func setVoicePreset(_ preset: VoicePreset) {
+        publisher.snapshot.voicePreset = preset
+        noiseProcessor.setVoicePreset(preset)
+        publisher.snapshot.lastError = nil
+        publisher.snapshot.statusMessage = "Voice profile: \(preset.rawValue.capitalized)"
+        publisher.emitSnapshot()
+    }
+
     func restartAfterDeviceChange() {
         stopProcessing()
         startProcessing()
@@ -216,6 +225,8 @@ final class AudioEngineController: @unchecked Sendable {
         inputConverter = hardwareFormat == processingFormat
             ? nil
             : AVAudioConverter(from: hardwareFormat, to: processingFormat)
+        inputConverter?.sampleRateConverterQuality = AVAudioQuality.max.rawValue
+        inputConverter?.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering
         if hardwareFormat != processingFormat, inputConverter == nil {
             retryOrFailStart(
                 message: "Could not convert the selected microphone to 48 kHz mono audio.",
@@ -262,6 +273,8 @@ final class AudioEngineController: @unchecked Sendable {
             isTapInstalled = false
         }
         audioEngine.reset()
+        inputConverter = nil
+        convertedBuffer = nil
         isCapturing = false
     }
 
@@ -293,10 +306,14 @@ final class AudioEngineController: @unchecked Sendable {
         if let inputConverter {
             let ratio = processingFormat.sampleRate / buffer.format.sampleRate
             let capacity = AVAudioFrameCount(ceil(Double(buffer.frameLength) * ratio)) + 1
-            guard let convertedBuffer = AVAudioPCMBuffer(
-                pcmFormat: processingFormat,
-                frameCapacity: capacity
-            ) else { return }
+            if convertedBuffer == nil || convertedBuffer!.frameCapacity < capacity {
+                convertedBuffer = AVAudioPCMBuffer(
+                    pcmFormat: processingFormat,
+                    frameCapacity: capacity
+                )
+            }
+            guard let convertedBuffer else { return }
+            convertedBuffer.frameLength = 0
 
             let converterInput = ConverterInputBuffer(buffer: buffer)
             var conversionError: NSError?
@@ -321,9 +338,9 @@ final class AudioEngineController: @unchecked Sendable {
         guard let channelData = processedBuffer.floatChannelData?[0] else { return }
         let frameCount = Int(processedBuffer.frameLength)
 
-        let samples = Array(UnsafeBufferPointer(start: channelData, count: frameCount))
         noiseProcessor.feedSamples(
-            samples,
+            channelData,
+            count: frameCount,
             capturedAtNanoseconds: DispatchTime.now().uptimeNanoseconds
         )
     }

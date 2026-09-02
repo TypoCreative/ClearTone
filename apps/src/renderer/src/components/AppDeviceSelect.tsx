@@ -41,7 +41,7 @@ export const AppDeviceSelect = memo(function AppDeviceSelect({
           onChange={handleChange}
           disabled={disabled}
           className={cn(
-            "h-11 w-full appearance-none rounded-xl border border-border/60 bg-background/40 px-4 pr-10 text-sm font-medium text-foreground outline-none backdrop-blur-md transition-[border-color,background-color,box-shadow]",
+            "h-11 w-full appearance-none rounded-xl border border-border/60 bg-background/80 px-4 pr-10 text-sm font-medium text-foreground outline-none transition-[border-color,background-color,box-shadow]",
             "focus-visible:border-primary/50 focus-visible:bg-background/60 focus-visible:ring-2 focus-visible:ring-primary/30",
             "disabled:cursor-not-allowed disabled:opacity-50"
           )}

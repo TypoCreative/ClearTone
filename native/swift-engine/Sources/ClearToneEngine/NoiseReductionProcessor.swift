@@ -6,6 +6,7 @@ protocol NoiseReductionProcessor: AnyObject {
     func start(strength: Double)
     func stop()
     func setStrength(_ value: Double)
+    func setVoicePreset(_ preset: VoicePreset)
     func feedSamples(_ samples: [Float], capturedAtNanoseconds: UInt64)
     func setVirtualMicrophone(enabled: Bool) throws
     func refreshVirtualMicrophoneState()
@@ -55,6 +56,10 @@ final class SimulatedNoiseReductionProcessor: NoiseReductionProcessor {
 
     func setStrength(_ value: Double) {
         strength = value
+    }
+
+    func setVoicePreset(_ preset: VoicePreset) {
+        publisher.snapshot.voicePreset = preset
     }
 
     func feedSamples(_: [Float], capturedAtNanoseconds _: UInt64) {}
