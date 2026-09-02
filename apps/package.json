@@ -1,7 +1,7 @@
 {
   "name": "@cleartone/electron",
   "productName": "ClearTone",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "ClearTone — real-time voice clarity for macOS",
   "private": true,
   "type": "module",
