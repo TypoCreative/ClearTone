@@ -1,99 +1,122 @@
-# ClearTone
+# ClearTone — Real-Time Voice Clarity for macOS
 
-**Professional AI microphone for macOS** — real-time noise cancellation that runs entirely on your Mac.
+ClearTone is an on-device microphone enhancement app for macOS. It removes
+background noise, improves voice clarity, and routes the cleaned signal to other
+apps through **ClearTone Virtual Microphone**.
 
----
+No account, cloud service, or internet connection is required. Audio processing
+stays on the Mac.
+
+Current version: **0.2.1**
 
 ## What It Does
 
-ClearTone cleans microphone audio in real time using AI. With the ClearTone virtual
-microphone driver installed, background noise is removed before the signal reaches
-Zoom, Discord, OBS, or another app that follows the macOS default input.
+ClearTone turns a physical microphone into a cleaner, application-ready audio
+source:
 
-**100% private.** Nothing leaves your Mac. No accounts, no cloud, no servers.
+1. Captures audio from the selected microphone with Core Audio.
+2. Converts the signal to mono, 48 kHz audio when required.
+3. Processes each 10 ms frame with RNNoise.
+4. Applies voice enhancement, including filtering, adaptive suppression,
+   dereverb-lite, EQ, automatic gain, compression, and limiting.
+5. Sends the result to ClearTone Virtual Microphone when virtual routing is on.
+6. Makes the cleaned signal available to conferencing, streaming, recording, and
+   communication apps.
 
----
+When virtual routing is enabled, ClearTone selects its virtual microphone as the
+macOS default input. Turning routing off or quitting normally restores the physical
+input.
 
 ## Features
 
-| Feature | Detail |
-|---------|--------|
-| **AI Denoising** | RNNoise neural network from Mozilla/Xiph — 48kHz, 10ms frames |
-| **Adjustable strength** | 0–100% slider — subtle cleanup or aggressive noise removal |
-| **Voice finishing** | High-pass, adaptive suppression, dereverb-lite, voice EQ, AGC/compressor, and limiter |
-| **Voice profiles** | Natural, Clear, and Broadcast presets available in both app and tray |
-| **Measured latency** | Capture-to-processing latency and output queue depth reported live |
-| **Dual interface** | Full dashboard + compact tray popup (always one click away) |
-| **Device management** | Auto-detect all mics, follow system input, or lock to a specific device |
-| **Live metrics** | Input/output RMS, noise reduction %, latency, frames processed |
-| **Virtual microphone routing** | Routes cleaned audio to ClearTone Virtual Microphone when its driver is installed |
-| **Apple Silicon native** | Compiled for M1/M2/M3/M4 — lightweight (~5% CPU, ~15MB) |
-| **Dark/light theme** | Toggle in the dashboard |
-| **Tray-only mode** | Run without the main window — stays in your menu bar |
-
----
+| Feature | Description |
+| --- | --- |
+| **Real-time noise reduction** | RNNoise processes 480-sample frames at 48 kHz for low-latency voice cleanup. |
+| **Voice enhancement** | High-pass filtering, adaptive speech protection, dereverb-lite, voice EQ, automatic gain, compression, and limiting. |
+| **Voice presets** | Natural, Clear, and Broadcast profiles provide different levels of polish without manual DSP configuration. |
+| **Adjustable denoise strength** | A 0–100% control balances natural voice detail against stronger background-noise removal. |
+| **Virtual Microphone toggle** | Enables or disables system-wide cleaned-audio routing from one place. |
+| **Bundled driver installer** | Detects a missing driver and provides an administrator-approved macOS installation flow. |
+| **Flexible microphone selection** | Follows the macOS default input automatically or stays locked to a chosen physical microphone. |
+| **Live audio diagnostics** | Reports input and output level, measured noise reduction, latency, processed frames, dropped frames, and output queue depth. |
+| **Resource monitoring** | Displays application CPU, resident memory, GPU activity, and process count. |
+| **Dashboard and menu bar controls** | Provides a full control center and a compact tray popup with the same essential audio controls. |
+| **Tray-only mode** | Releases the main renderer when it is not needed to lower background memory usage. |
+| **Local processing** | Keeps microphone audio on-device with no upload, account, or remote inference service. |
+| **Accessible controls** | Includes keyboard navigation, visible focus states, semantic status updates, descriptive labels, and reduced background animation. |
+| **Native macOS engine** | Uses Swift, Core Audio, and release builds matched to arm64 or x64 Macs. |
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────┐
-│                 macOS Desktop                │
-│                                              │
-│  ┌─────────────┐         ┌────────────────┐ │
-│  │  Electron    │  IPC    │  Swift Engine  │ │
-│  │  (React UI)  │◄──────►│  (Core Audio + │ │
-│  │              │  JSON   │   RNNoise)     │ │
-│  └─────────────┘         └───────┬────────┘ │
-│                                   │          │
-│                            ┌──────▼────────┐ │
-│                            │ Physical Mic  │ │
-│                            └──────┬────────┘ │
-│                                   │ cleaned  │
-│                            ┌──────▼────────┐ │
-│                            │ Virtual Mic   │ │
-│                            │ (HAL plug-in) │ │
-│                            └───────────────┘ │
-└─────────────────────────────────────────────┘
+ClearTone separates the control interface from the real-time audio path. A native
+Swift process handles audio work, while Electron and React provide the dashboard,
+menu bar UI, settings, and lifecycle management.
+
+```text
+Control plane
+
+React UI ── contextBridge ── Electron main ── JSON lines ── Swift engine
+   ▲                              │                                │
+   └──────── typed snapshots ─────┴────────────────────────────────┘
+
+Audio plane
+
+Physical microphone
+        │
+        ▼
+Core Audio capture and sample-rate conversion
+        │
+        ▼
+RNNoise ──► voice enhancement ──► reusable output buffer pool
+                                           │
+                                           ▼
+                         ClearTone Virtual Microphone driver
+                                           │
+                                           ▼
+                           Zoom, Meet, Discord, OBS, and others
 ```
 
-| Layer | Technology | Role |
-|-------|-----------|------|
-| UI | React 19 + TypeScript + Tailwind CSS v4 + Radix UI | Dashboard, tray popup, controls |
-| Shell | Electron 43 | Window management, tray, app lifecycle |
-| IPC | stdin/stdout JSON lines | Typed command protocol |
-| Engine | Swift 6.2 + Core Audio | Mic capture, processing graph, device enumeration |
-| Virtual device | Core Audio Audio Server Plug-in (HAL) | Loopback output-to-input device for all macOS apps |
-| AI/DSP | RNNoise v0.2 + native Swift DSP | Adaptive denoising and real-time voice finishing (480 samples = 10ms) |
-| Build | electron-vite, electron-builder, SPM | Dev server, DMG packaging |
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| Renderer | React 19, TypeScript, Tailwind CSS, Radix UI | Dashboard, tray controls, accessibility, live status, and metrics. |
+| Desktop shell | Electron 43 | Window and tray lifecycle, settings, secure renderer bridge, process monitoring, and native-engine supervision. |
+| Shared contracts | TypeScript package | Commands, acknowledgements, settings, snapshots, and metric types shared across app boundaries. |
+| Native engine | Swift 6.2, AVAudioEngine, Core Audio | Device discovery, microphone capture, format conversion, processing coordination, and virtual output. |
+| Noise reduction | RNNoise C library | Neural noise suppression on 10 ms audio frames. |
+| Voice finishing | Native Swift DSP | Filtering, adaptive suppression, dereverb-lite, EQ, gain control, compression, and limiting. |
+| Virtual device | Core Audio Audio Server Plug-in | Exposes the processed output as a microphone that macOS applications can select. |
+| Transport | Newline-delimited JSON over stdin/stdout | Keeps UI and native audio failures isolated while providing typed commands and snapshots. |
+| Build system | Swift Package Manager, electron-vite, electron-builder, Xcode | Builds the engine, universal driver installer, application bundle, and DMG artifacts. |
 
----
+The engine reuses audio and conversion buffers in its real-time path. Device scans
+occur only when needed, metrics are rate-limited, and hidden renderers are released
+to reduce CPU wakeups and memory pressure without changing audio quality.
 
 ## Benefits
 
-| Benefit | What It Means |
-|---------|---------------|
-| **Sound professional anywhere** | Take calls from cafes, airports, co-working spaces without background noise |
-| **100% private** | All processing is on-device. No audio ever leaves your Mac |
-| **Works with everything** | Compatible through the ClearTone virtual microphone driver |
-| **Observable audio health** | Measured latency, dropped frames, and queue depth make glitches diagnosable |
-| **Lightweight** | ~15MB binary, ~5% CPU on M1+. Sips battery |
-| **Always accessible** | Menu bar icon. Toggle on/off in one click |
-| **Apple Silicon native** | Compiled for arm64. Uses hardware acceleration |
-| **Open model** | RNNoise is BSD-licensed. Proven in Mozilla, OBS, Discord |
-| **Extensible** | Modular engine. Swap AI models without rewriting the UI |
-| **Polished design** | Dark glassy aesthetic, glow effects, professional typography |
-
----
+| Benefit | Why It Matters |
+| --- | --- |
+| **Clearer speech** | Reduces steady noise, keyboard sounds, fan noise, and other distractions while preserving active speech. |
+| **One setup for multiple apps** | Configure the microphone once in ClearTone, then use the virtual microphone across supported macOS apps. |
+| **Private by design** | Audio is processed locally and is not sent to a server. |
+| **Consistent voice profile** | Uses the same denoise strength and voice preset across calls, streams, and recordings. |
+| **Visible system health** | Live latency, drop, queue, CPU, memory, and GPU metrics make performance issues easier to identify. |
+| **Low idle overhead** | Tray-only mode, renderer cleanup, rate-limited polling, and delayed DSP memory cleanup reduce background resource usage. |
+| **Failure isolation** | The native audio engine runs separately from the Electron UI and can be supervised or restarted independently. |
+| **Fast access** | Essential controls remain available from the macOS menu bar. |
+| **Extensible processing pipeline** | Typed boundaries and separate DSP modules make future models or voice processors easier to add. |
 
 ## Use Cases
 
-| Scenario | Without ClearTone | With ClearTone |
-|----------|------------------|----------------|
-| Remote work from a cafe | Espresso machine + chatter in every call | Clean, professional voice |
-| Gaming / streaming | Keyboard clacks, fan noise, room echo | Crisp comms, better stream quality |
-| Podcasting in an untreated room | Reverb, street noise, HVAC hum | Studio-like sound |
-| Online teaching | Kids, pets, doorbells | Focus on your voice |
-| Voice recording on the go | Wind, traffic, crowd noise | Clean takes anywhere |
+| Use case | Typical noise or problem | How ClearTone helps |
+| --- | --- | --- |
+| **Remote meetings** | Fans, air conditioning, nearby conversations, and keyboard noise. | Provides a consistent cleaned microphone to Zoom, Meet, Teams, and similar apps. |
+| **Streaming and gaming** | Mechanical keyboards, computer fans, controller noise, and room ambience. | Improves voice communication and stream audio before it reaches OBS or chat apps. |
+| **Podcasting and voice-over** | Untreated rooms, light echo, HVAC hum, and inconsistent voice level. | Applies denoise and voice finishing before recording. |
+| **Online teaching and support** | Household activity, pets, doorbells, and background speech. | Keeps spoken instructions easier to understand. |
+| **Mobile or shared workspaces** | Cafe noise, coworking chatter, and changing microphone devices. | Follows the system input and maintains the selected voice profile. |
+| **Product demos and screen recordings** | Laptop fan noise, typing, and inconsistent microphone distance. | Produces a more controlled narration track in recording software. |
+| **Accessibility and speech communication** | Environmental noise that makes speech harder to distinguish. | Improves voice-to-background contrast for listeners. |
 
 ---
 
@@ -216,7 +239,9 @@ on Apple's MIT-licensed minimal sample, with its license retained next to the co
 
 ## Installation
 
-Download the latest `ClearTone.dmg` from [Releases](https://github.com/your-repo/cleartone/releases), open it, and drag `ClearTone.app` to your `Applications` folder.
+Download the latest `ClearTone.dmg` from
+[GitHub Releases](https://github.com/TypoCreative/ClearTone/releases), open it, and
+drag `ClearTone.app` to your `Applications` folder.
 
 ### If macOS Blocks the App
 
