@@ -67,7 +67,7 @@ struct AcknowledgementEnvelope: Codable {
 // MARK: - State Publisher
 
 final class EngineStatePublisher: @unchecked Sendable {
-    private let encoder = JSONEncoder()
+    var onSnapshot: ((EngineSnapshot) -> Void)?
 
     var snapshot = EngineSnapshot(
         phase: "booting",
@@ -129,36 +129,11 @@ final class EngineStatePublisher: @unchecked Sendable {
     }
 
     func emitSnapshot() {
-        do {
-            let payload = try encoder.encode(
-                SnapshotEnvelope(type: "snapshot", snapshot: snapshot)
-            )
-
-            if let line = String(data: payload, encoding: .utf8) {
-                FileHandle.standardOutput.write(Data((line + "\n").utf8))
-            }
-        } catch {
-            FileHandle.standardError.write(Data("Failed to encode engine snapshot\n".utf8))
-        }
+        onSnapshot?(snapshot)
     }
 
     func emitAcknowledgement(requestId: String?, ok: Bool, error: String? = nil) {
-        guard let requestId else { return }
-
-        do {
-            let payload = try encoder.encode(
-                AcknowledgementEnvelope(
-                    type: "ack",
-                    requestId: requestId,
-                    ok: ok,
-                    error: error
-                )
-            )
-            if let line = String(data: payload, encoding: .utf8) {
-                FileHandle.standardOutput.write(Data((line + "\n").utf8))
-            }
-        } catch {
-            FileHandle.standardError.write(Data("Failed to encode engine acknowledgement\n".utf8))
-        }
+        // Native UI and engine now share one process. The acknowledgement
+        // shape remains for command compatibility, but no stdout bridge is needed.
     }
 }

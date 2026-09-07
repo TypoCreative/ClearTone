@@ -3,34 +3,13 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "apps",
-    "packages/contracts"
-  ],
   "scripts": {
-    "dev": "npm --workspace apps run dev",
-    "build": "npm --workspace packages/contracts run build && npm run build:driver && npm run build:native && npm --workspace apps run build",
-    "dist:mac": "npm --workspace apps run dist:mac",
-    "typecheck": "npm --workspace packages/contracts run build && npm --workspace apps run typecheck",
-    "build:native": "node apps/scripts/build-native.mjs",
-    "build:driver": "node apps/scripts/build-driver.mjs",
-    "dev:native": "swift run --package-path native/swift-engine --disable-sandbox ClearToneEngine",
-    "lint": "eslint .",
-    "test": "vitest run && swift test --package-path native/swift-engine --disable-sandbox",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
-  },
-  "allowScripts": {
-    "electron@43.1.1": true,
-    "electron-winstaller@5.4.0": true,
-    "esbuild@0.25.12": true,
-    "esbuild@0.28.1": true
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.9.1",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.11.0",
-    "typescript-eslint": "^8.68.0",
-    "vitest": "^4.1.11"
+    "dev": "swift run --package-path native/swift-engine --disable-sandbox ClearTone",
+    "build": "scripts/build-app.sh",
+    "dist:mac": "scripts/package-mac.sh",
+    "build:native": "scripts/build-app.sh",
+    "build:driver": "scripts/build-driver.sh",
+    "test": "swift test --package-path native/swift-engine --disable-sandbox",
+    "check": "scripts/check.sh"
   }
 }

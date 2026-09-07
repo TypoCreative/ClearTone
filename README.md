@@ -1,274 +1,188 @@
-# ClearTone — Real-Time Voice Clarity for macOS
+# ClearTone — Native Voice Clarity for macOS
 
-ClearTone is an on-device microphone enhancement app for macOS. It removes
-background noise, improves voice clarity, and routes the cleaned signal to other
-apps through **ClearTone Virtual Microphone**.
+ClearTone is a native macOS microphone enhancement app. It removes background
+noise, improves voice clarity, and routes the cleaned signal to other apps through
+**ClearTone Virtual Microphone**.
 
-No account, cloud service, or internet connection is required. Audio processing
-stays on the Mac.
+The dashboard, menu bar interface, audio engine, settings, and performance monitor
+run in one Swift process. ClearTone does not bundle Electron, Chromium, React,
+Node.js, an account system, or a cloud audio service. Microphone audio stays on the
+Mac.
 
 Current version: **0.2.1**
 
 ## What It Does
 
-ClearTone turns a physical microphone into a cleaner, application-ready audio
-source:
-
-1. Captures audio from the selected microphone with Core Audio.
-2. Converts the signal to mono, 48 kHz audio when required.
-3. Processes each 10 ms frame with RNNoise.
-4. Applies voice enhancement, including filtering, adaptive suppression,
-   dereverb-lite, EQ, automatic gain, compression, and limiting.
-5. Sends the result to ClearTone Virtual Microphone when virtual routing is on.
-6. Makes the cleaned signal available to conferencing, streaming, recording, and
-   communication apps.
-
-When virtual routing is enabled, ClearTone selects its virtual microphone as the
-macOS default input. Turning routing off or quitting normally restores the physical
-input.
+1. Captures the selected physical microphone with Core Audio.
+2. Converts its signal to mono 48 kHz audio when needed.
+3. Processes every 480-sample, 10 ms frame with RNNoise.
+4. Applies filtering, adaptive suppression, dereverb-lite, voice EQ, automatic
+   gain, compression, and limiting.
+5. Sends cleaned frames through the ClearTone Core Audio virtual microphone.
+6. Automatically selects that virtual microphone as the macOS default input while
+   routing is enabled, then restores the physical input when routing stops.
 
 ## Features
 
 | Feature | Description |
 | --- | --- |
-| **Real-time noise reduction** | RNNoise processes 480-sample frames at 48 kHz for low-latency voice cleanup. |
-| **Voice enhancement** | High-pass filtering, adaptive speech protection, dereverb-lite, voice EQ, automatic gain, compression, and limiting. |
-| **Voice presets** | Natural, Clear, and Broadcast profiles provide different levels of polish without manual DSP configuration. |
-| **Adjustable denoise strength** | A 0–100% control balances natural voice detail against stronger background-noise removal. |
-| **Virtual Microphone toggle** | Enables or disables system-wide cleaned-audio routing from one place. |
-| **Bundled driver installer** | Detects a missing driver and provides an administrator-approved macOS installation flow. |
-| **Flexible microphone selection** | Follows the macOS default input automatically or stays locked to a chosen physical microphone. |
-| **Live audio diagnostics** | Reports input and output level, measured noise reduction, latency, processed frames, dropped frames, and output queue depth. |
-| **Resource monitoring** | Displays application CPU, resident memory, GPU activity, and process count. |
-| **Dashboard and menu bar controls** | Provides a full control center and a compact tray popup with the same essential audio controls. |
-| **Tray-only mode** | Releases the main renderer when it is not needed to lower background memory usage. |
-| **Local processing** | Keeps microphone audio on-device with no upload, account, or remote inference service. |
-| **Accessible controls** | Includes keyboard navigation, visible focus states, semantic status updates, descriptive labels, and reduced background animation. |
-| **Native macOS engine** | Uses Swift, Core Audio, and release builds matched to arm64 or x64 Macs. |
+| Real-time noise reduction | Runs RNNoise on every 10 ms frame without lowering the audio processing rate to save resources. |
+| Voice enhancement | Adds native filtering, speech protection, dereverb-lite, EQ, gain control, compression, and limiting. |
+| Voice profiles | Offers Natural, Clear, and Broadcast profiles. |
+| Adjustable strength | Balances voice detail and stronger suppression from 0–100%. |
+| One-switch virtual routing | Enables cleaned audio and changes the macOS default input from ClearTone. |
+| Driver recovery | Detects a missing virtual microphone and opens the bundled installer. |
+| Input control | Follows the current macOS input or locks processing to a selected physical microphone. |
+| Live diagnostics | Shows input/output RMS, reduction, latency, dropped frames, and queue depth. |
+| Lightweight performance panel | Shows native process CPU and resident memory; GPU work is handled by the macOS compositor, with no ClearTone GPU helper process. |
+| Native dashboard and menu bar | Uses SwiftUI/AppKit controls with a compact tray-only mode. |
+| Accessibility | Provides native keyboard navigation, VoiceOver labels, scalable system fonts, semantic controls, and readable status/error messages. |
+| Local processing | Requires no upload, sign-in, or internet connection for audio processing. |
 
 ## Architecture
 
-ClearTone separates the control interface from the real-time audio path. A native
-Swift process handles audio work, while Electron and React provide the dashboard,
-menu bar UI, settings, and lifecycle management.
+ClearTone now uses one application process for UI and audio coordination. There is
+no browser renderer, Electron main process, network utility process, GPU helper, or
+JSON subprocess bridge.
 
 ```text
-Control plane
-
-React UI ── contextBridge ── Electron main ── JSON lines ── Swift engine
-   ▲                              │                                │
-   └──────── typed snapshots ─────┴────────────────────────────────┘
-
-Audio plane
-
-Physical microphone
-        │
-        ▼
-Core Audio capture and sample-rate conversion
-        │
-        ▼
-RNNoise ──► voice enhancement ──► reusable output buffer pool
-                                           │
-                                           ▼
-                         ClearTone Virtual Microphone driver
-                                           │
-                                           ▼
-                           Zoom, Meet, Discord, OBS, and others
+SwiftUI dashboard + menu bar
+             │
+             ▼
+Native app model and settings
+             │
+             ▼
+AVAudioEngine + Core Audio device control
+             │
+             ▼
+RNNoise (10 ms frames) → native voice enhancement
+             │
+             ▼
+Reusable virtual-output buffer pool
+             │
+             ▼
+ClearTone Virtual Microphone HAL driver
+             │
+             ▼
+Zoom, Meet, Teams, Discord, OBS, recording apps
 ```
 
 | Layer | Technology | Responsibility |
 | --- | --- | --- |
-| Renderer | React 19, TypeScript, Tailwind CSS, Radix UI | Dashboard, tray controls, accessibility, live status, and metrics. |
-| Desktop shell | Electron 43 | Window and tray lifecycle, settings, secure renderer bridge, process monitoring, and native-engine supervision. |
-| Shared contracts | TypeScript package | Commands, acknowledgements, settings, snapshots, and metric types shared across app boundaries. |
-| Native engine | Swift 6.2, AVAudioEngine, Core Audio | Device discovery, microphone capture, format conversion, processing coordination, and virtual output. |
-| Noise reduction | RNNoise C library | Neural noise suppression on 10 ms audio frames. |
-| Voice finishing | Native Swift DSP | Filtering, adaptive suppression, dereverb-lite, EQ, gain control, compression, and limiting. |
-| Virtual device | Core Audio Audio Server Plug-in | Exposes the processed output as a microphone that macOS applications can select. |
-| Transport | Newline-delimited JSON over stdin/stdout | Keeps UI and native audio failures isolated while providing typed commands and snapshots. |
-| Build system | Swift Package Manager, electron-vite, electron-builder, Xcode | Builds the engine, universal driver installer, application bundle, and DMG artifacts. |
+| App interface | SwiftUI and AppKit | Dashboard, menu bar, native controls, lifecycle, settings, errors, and accessibility. |
+| Audio engine | Swift, AVAudioEngine, Core Audio | Device discovery, capture, conversion, processing coordination, and default-input routing. |
+| Noise reduction | RNNoise C library | Neural suppression on 480-sample frames at 48 kHz. |
+| Voice finishing | Native Swift DSP | Filtering, adaptive suppression, dereverb-lite, EQ, gain, compression, and limiting. |
+| Virtual device | Core Audio Audio Server Plug-in | Exposes processed output as a macOS input device. |
+| Build system | Swift Package Manager and Xcode command-line tools | Builds the app, HAL driver installer, signed bundle, and DMG. |
 
-The engine reuses audio and conversion buffers in its real-time path. Device scans
-occur only when needed, metrics are rate-limited, and hidden renderers are released
-to reduce CPU wakeups and memory pressure without changing audio quality.
+The real-time path retains the existing buffer reuse, 480-sample fast path, pooled
+virtual-output buffers, 1 Hz audio metrics, and delayed RNNoise cleanup. Moving the
+UI to Swift does not reduce audio quality; it removes framework overhead around the
+audio engine.
+
+## Expected Resource Improvement
+
+The native build targets one ClearTone application process instead of the previous
+Electron main, renderer, GPU helper, network helper, and separate Swift engine.
+This should substantially reduce idle RAM, CPU wakeups, application size, and
+process count.
+
+Exact memory and CPU depend on the microphone, macOS version, driver state, active
+window, and whether processing is running. Measure the newly installed native build
+before publishing a fixed number; an older app in `/Applications` does not represent
+this source tree.
 
 ## Benefits
 
-| Benefit | Why It Matters |
-| --- | --- |
-| **Clearer speech** | Reduces steady noise, keyboard sounds, fan noise, and other distractions while preserving active speech. |
-| **One setup for multiple apps** | Configure the microphone once in ClearTone, then use the virtual microphone across supported macOS apps. |
-| **Private by design** | Audio is processed locally and is not sent to a server. |
-| **Consistent voice profile** | Uses the same denoise strength and voice preset across calls, streams, and recordings. |
-| **Visible system health** | Live latency, drop, queue, CPU, memory, and GPU metrics make performance issues easier to identify. |
-| **Low idle overhead** | Tray-only mode, renderer cleanup, rate-limited polling, and delayed DSP memory cleanup reduce background resource usage. |
-| **Failure isolation** | The native audio engine runs separately from the Electron UI and can be supervised or restarted independently. |
-| **Fast access** | Essential controls remain available from the macOS menu bar. |
-| **Extensible processing pipeline** | Typed boundaries and separate DSP modules make future models or voice processors easier to add. |
+- Lower idle memory and fewer processes.
+- Faster launch and more consistent macOS controls.
+- The same RNNoise and voice-enhancement quality as the previous engine.
+- No Chromium or JavaScript runtime in the shipped application.
+- One setup point for calls, streams, recordings, and voice chat.
+- Local audio processing and native permission handling.
+- Automatic restoration of the physical input on normal termination.
 
 ## Use Cases
 
-| Use case | Typical noise or problem | How ClearTone helps |
-| --- | --- | --- |
-| **Remote meetings** | Fans, air conditioning, nearby conversations, and keyboard noise. | Provides a consistent cleaned microphone to Zoom, Meet, Teams, and similar apps. |
-| **Streaming and gaming** | Mechanical keyboards, computer fans, controller noise, and room ambience. | Improves voice communication and stream audio before it reaches OBS or chat apps. |
-| **Podcasting and voice-over** | Untreated rooms, light echo, HVAC hum, and inconsistent voice level. | Applies denoise and voice finishing before recording. |
-| **Online teaching and support** | Household activity, pets, doorbells, and background speech. | Keeps spoken instructions easier to understand. |
-| **Mobile or shared workspaces** | Cafe noise, coworking chatter, and changing microphone devices. | Follows the system input and maintains the selected voice profile. |
-| **Product demos and screen recordings** | Laptop fan noise, typing, and inconsistent microphone distance. | Produces a more controlled narration track in recording software. |
-| **Accessibility and speech communication** | Environmental noise that makes speech harder to distinguish. | Improves voice-to-background contrast for listeners. |
-
----
+- Remote meetings with fan, keyboard, HVAC, or nearby speech noise.
+- Streaming and gaming through OBS or voice chat.
+- Podcasts, voice-over, demos, and screen recordings.
+- Online teaching, customer support, and shared workspaces.
+- Accessibility situations where stronger voice-to-background contrast helps
+  listeners.
 
 ## Development
 
-### Prerequisites
+### Requirements
 
-- macOS 14+
-- Xcode 26+ / Swift 6.2+ (for Swift engine)
-- Node.js 22+
-- npm 10+
+- macOS 13 or newer
+- Xcode 26 or newer with Swift 6.2
+- Xcode command-line tools
 
-### Quick Start
+Node.js and npm are not required by the native build scripts. The small root
+`package.json` remains only as optional command aliases for existing contributors.
+
+### Build and Run
 
 ```bash
-# Install dependencies
-npm install
+# Run directly with Swift Package Manager
+swift run --package-path native/swift-engine --disable-sandbox ClearTone
 
-# Build Swift engine
-cd native/swift-engine && swift build && cd ../..
+# Build and ad-hoc sign dist/ClearTone.app
+scripts/build-app.sh
 
-# Start dev server
-npm run dev
+# Run native tests
+scripts/check.sh
+
+# Build the HAL driver installer
+scripts/build-driver.sh
+
+# Build the app, driver, and versioned DMG
+scripts/package-mac.sh
 ```
+
+The equivalent aliases are `npm run dev`, `npm run build`, `npm test`, and
+`npm run dist:mac`; they execute the same Swift/shell commands and do not install
+or launch Electron.
 
 ### Project Structure
 
-```
-TC-ClearTone/
-├── apps/                          # Electron app
-│   └── src/
-│       ├── main/                  # Main process (window, tray, IPC)
-│       ├── preload/               # contextBridge API
-│       └── renderer/              # React UI
-│           └── src/
-│               ├── views/         # AppView, TrayView
-│               ├── components/    # UI components
-│               ├── hooks/         # useEngineSnapshot, useThemePreference
-│               └── utils/         # Formatters, state helpers
-├── native/swift-engine/           # Swift native engine
-│   ├── Package.swift              # SPM manifest
-│   └── Sources/
-│       ├── CRNNoise/              # RNNoise C library
-│       └── ClearToneEngine/       # Swift engine modules
-├── native/virtual-microphone-driver/ # Universal Core Audio HAL driver
-├── packages/contracts/            # Shared TypeScript types
-│   └── src/index.ts               # EngineSnapshot, EngineCommand, etc.
-└── docs/
-    ├── plan/                      # PRD, ADR, Roadmap, Decisions
-    ├── research/                  # RNNoise, Core Audio, latency, etc.
-    └── superpowers/specs/         # Design specs
+```text
+ClearTone/
+├── native/
+│   ├── swift-engine/
+│   │   ├── Package.swift
+│   │   ├── Resources/              # Info.plist, entitlements, driver package
+│   │   ├── Sources/CRNNoise/       # RNNoise C sources
+│   │   └── Sources/ClearToneEngine/
+│   │       ├── AppEntry.swift      # Native app and menu bar entry point
+│   │       ├── NativeApp.swift     # SwiftUI views, state, settings, metrics
+│   │       └── ...                 # Core Audio and DSP pipeline
+│   └── virtual-microphone-driver/  # Core Audio HAL driver source
+├── scripts/                        # Native build, test, driver, and DMG scripts
+├── docs/                           # Product decisions and research
+└── .github/workflows/              # Native arm64/x64 release builds
 ```
 
-### Available Commands
+### Signing
 
-```bash
-npm run dev          # Start Electron dev server with hot reload
-npm run build        # Build for distribution
-npm run build:driver # Build the universal HAL driver and installer package
-npm run dist:mac     # Build a macOS DMG (signed when credentials are available)
-npm run check        # Lint, typecheck, test, and production build
-```
+For a local signed DMG, place `_dev-id-apple.p12` in the repository root and run
+`scripts/package-mac.sh`. The script asks for the certificate password without
+printing it, imports the identity into a temporary keychain, signs the native app
+and driver, then deletes the keychain.
 
-The production build compiles the Swift engine and the universal virtual microphone
-driver in release mode, then copies both into app resources before packaging.
-
-For macOS packaging, place `_dev-id-apple.p12` in the project root and run
-`npm run dist:mac`. ClearTone imports that certificate into an isolated temporary
-keychain, signs the app, and removes the keychain after the build. For a
-password-protected certificate, the command prompts securely in an interactive
-terminal; set `CSC_KEY_PASSWORD` instead for CI or other non-interactive builds. You
-can set `CSC_LINK` explicitly to override root certificate detection. Certificate
-files are ignored by Git and are never bundled with the app. When no certificate is
-available, packaging produces an unsigned development build. An Apple Development
-identity can sign local test builds; public releases still require a Developer ID
-Application identity so they can be notarized and distributed outside the App Store.
-
-The GitHub release workflow builds on native `macos-26-intel` and `macos-26`
-runners so the bundled Swift engine matches the x64 or arm64 DMG. Configure these
-repository secrets for signed releases:
-
-- `CSC_LINK`: base64-encoded Developer ID Application `.p12` certificate.
-- `CSC_KEY_PASSWORD`: password used when exporting the certificate.
-
-A manually dispatched workflow can create unsigned test DMGs without those secrets.
-A published GitHub Release requires `CSC_LINK` to prevent accidentally distributing
-an unsigned application.
-
-To notarize, configure either App Store Connect API credentials
-(`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) or the Apple ID
-notarization credentials supported by electron-builder.
-
-For a distributable driver installer, import the matching certificates into the
-build keychain and set `CLEARTONE_DRIVER_SIGN_IDENTITY` to a Developer ID Application
-identity and `CLEARTONE_INSTALLER_SIGN_IDENTITY` to a Developer ID Installer identity.
-Without them, `npm run build:driver` creates an ad-hoc-signed development driver and
-an unsigned local installer package.
-
-### Virtual Microphone
-
-ClearTone bundles its own Audio Server Driver Plug-in. If it is not installed, the
-Virtual Microphone card shows **Install Driver** instead of allowing an invalid
-toggle action. The button invokes the bundled installer through a standard macOS
-administrator prompt and installs the driver in `/Library/Audio/Plug-Ins/HAL`.
-ClearTone polls Core Audio and makes the toggle available as soon as the device is
-detected. A logout or restart may be required on macOS versions that do not reload
-the plug-in immediately.
-
-When enabled, ClearTone binds capture to the selected physical microphone, writes
-RNNoise output to the driver's output stream, and changes the macOS default input
-to the driver's input stream. Turning it off or quitting normally restores the
-physical system input. The device name is `ClearTone Virtual Microphone`; its UID is
-`com.typocreative.cleartone.virtual-microphone`.
-
-Apple recommends Audio Server Driver Plug-ins for virtual audio devices;
-AudioDriverKit is intended for physical audio hardware. The driver source is based
-on Apple's MIT-licensed minimal sample, with its license retained next to the code.
-
----
-
-## Installation
-
-Download the latest `ClearTone.dmg` from
-[GitHub Releases](https://github.com/TypoCreative/ClearTone/releases), open it, and
-drag `ClearTone.app` to your `Applications` folder.
-
-### If macOS Blocks the App
-
-Development builds that are not notarized may show a warning. Use one of these methods:
-
-**Option A — Open Anyway from System Settings**
-
-1. Open **System Settings** → **Privacy & Security**
-2. Scroll down until you find the message that ClearTone was blocked
-3. Click **Open Anyway**
-4. Confirm again if prompted
-
-**Option B — Remove Quarantine from Terminal**
-
-If the app is already in `/Applications`:
-
-```bash
-sudo xattr -dr com.apple.quarantine /Applications/ClearTone.app
-```
-
-Then open `ClearTone.app` again.
+A public release must use a valid **Developer ID Application** identity with its
+private key. GitHub Actions reads the base64-encoded certificate and password from
+`CSC_LINK` and `CSC_KEY_PASSWORD`. An unsigned/ad-hoc local build is suitable for
+development but not public Gatekeeper distribution. Notarization still requires
+separate Apple notary credentials and is not implied by code signing.
 
 ### Microphone Permission
 
-The first time you start processing, macOS will ask for microphone access. You must grant it — ClearTone needs mic input to work.
-
----
+The first processing start triggers the native macOS microphone permission dialog.
+If access was denied, enable ClearTone under **System Settings → Privacy & Security
+→ Microphone**, then reopen the app.
 
 ## License
 

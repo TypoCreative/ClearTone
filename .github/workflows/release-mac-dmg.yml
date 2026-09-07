@@ -24,22 +24,12 @@ jobs:
     env:
       CLEARTONE_TARGET_ARCH: ${{ matrix.arch }}
       CLEARTONE_REQUIRE_DEVELOPER_ID: ${{ github.event_name == 'release' }}
-      # Store the base64-encoded .p12 and password as repository secrets.
-      # workflow_dispatch can still create an unsigned test build when omitted.
+      # Store the base64-encoded signing .p12 and password as repository secrets.
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Require signing certificate for a published release
         if: github.event_name == 'release'
@@ -68,27 +58,53 @@ jobs:
 
       - name: Build DMG
         run: |
-          trap 'rm -f _dev-id-apple.p12' EXIT
+          keychain="$RUNNER_TEMP/cleartone-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          cleanup() {
+            security delete-keychain "$keychain" 2>/dev/null || true
+            rm -f "$RUNNER_TEMP/cleartone-signing.p12"
+          }
+          trap cleanup EXIT
 
           if [ -n "$CSC_LINK" ]; then
-            node -e "require('fs').writeFileSync('_dev-id-apple.p12', Buffer.from(process.env.CSC_LINK, 'base64'))"
-            chmod 600 _dev-id-apple.p12
+            echo "$CSC_LINK" | base64 -D > "$RUNNER_TEMP/cleartone-signing.p12"
+            chmod 600 "$RUNNER_TEMP/cleartone-signing.p12"
+            security create-keychain -p "$keychain_password" "$keychain"
+            security unlock-keychain -p "$keychain_password" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security import "$RUNNER_TEMP/cleartone-signing.p12" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+            security list-keychains -d user -s "$keychain"
+
+            identities="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(.*\)"/\1/p')"
+            identity="$(printf '%s\n' "$identities" | grep '^Developer ID Application:' | head -n 1 || true)"
+            [ -z "$identity" ] && identity="$(printf '%s\n' "$identities" | head -n 1)"
+            if [ -z "$identity" ]; then
+              echo "::error::No code-signing identity with private key found in the .p12"
+              exit 1
+            fi
+            if [ "${{ github.event_name }}" = "release" ] && [[ "$identity" != Developer\ ID\ Application:* ]]; then
+              echo "::error::Published releases require a Developer ID Application identity"
+              exit 1
+            fi
+            export CLEARTONE_APP_SIGN_IDENTITY="$identity"
+            export CLEARTONE_DRIVER_SIGN_IDENTITY="$identity"
           fi
 
-          env -u CSC_LINK npm --workspace apps run dist:mac
+          scripts/package-mac.sh
 
       - name: Verify packaged architecture
         run: |
-          file apps/resources/native/ClearToneEngine
+          file dist/ClearTone.app/Contents/MacOS/ClearTone
           case "${{ matrix.arch }}" in
-            x64) file apps/resources/native/ClearToneEngine | grep -q "x86_64" ;;
-            arm64) file apps/resources/native/ClearToneEngine | grep -q "arm64" ;;
+            x64) file dist/ClearTone.app/Contents/MacOS/ClearTone | grep -q "x86_64" ;;
+            arm64) file dist/ClearTone.app/Contents/MacOS/ClearTone | grep -q "arm64" ;;
           esac
 
       - name: Upload DMG to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v3
         with:
-          files: apps/dist/*.dmg
+          files: dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

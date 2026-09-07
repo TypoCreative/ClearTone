@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "ClearToneEngine", targets: ["ClearToneEngine"])
+        .executable(name: "ClearTone", targets: ["ClearToneEngine"])
     ],
     targets: [
         .target(
@@ -35,7 +35,14 @@ let package = Package(
         .executableTarget(
             name: "ClearToneEngine",
             dependencies: ["CRNNoise"],
-            path: "Sources/ClearToneEngine"
+            path: "Sources/ClearToneEngine",
+            linkerSettings: [
+                .linkedFramework("SwiftUI"),
+                .linkedFramework("AppKit"),
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("AudioToolbox"),
+                .linkedFramework("CoreAudio")
+            ]
         ),
         .testTarget(
             name: "ClearToneEngineTests",
