@@ -125,6 +125,7 @@ private struct BiquadFilter {
 /// The processor is queue-confined by RNNoiseProcessor.
 final class VoiceEnhancementProcessor {
     private let sampleRate = 48_000.0
+    private let inverseTanhOne: Float = 1 / tanh(1)
     private var preset: VoicePreset
     private var parameters: VoiceEnhancementParameters
     private var highPass = BiquadFilter()
@@ -169,7 +170,11 @@ final class VoiceEnhancementProcessor {
     }
 
     @discardableResult
-    func process(_ samples: inout [Float], speechProbability: Float) -> Double {
+    func process(
+        _ samples: inout [Float],
+        speechProbability: Float,
+        measureOutputRMS: Bool = true
+    ) -> Double {
         guard !samples.isEmpty else { return 0 }
 
         var sumSquares: Float = 0
@@ -215,10 +220,12 @@ final class VoiceEnhancementProcessor {
             }
             let limitedSample = softLimit(sample, ceiling: parameters.limiterCeiling)
             samples[index] = limitedSample
-            outputSumSquares += Double(limitedSample * limitedSample)
+            if measureOutputRMS {
+                outputSumSquares += Double(limitedSample * limitedSample)
+            }
         }
 
-        return sqrt(outputSumSquares / Double(samples.count))
+        return measureOutputRMS ? sqrt(outputSumSquares / Double(samples.count)) : 0
     }
 
     private func configureFilters() {
@@ -246,7 +253,7 @@ final class VoiceEnhancementProcessor {
         guard magnitude > knee else { return sample }
         let availableRange = ceiling - knee
         let normalized = (magnitude - knee) / max(availableRange, 0.000_1)
-        let limited = knee + availableRange * tanh(normalized) / tanh(1)
+        let limited = knee + availableRange * tanh(normalized) * inverseTanhOne
         return copysign(min(ceiling, limited), sample)
     }
 }

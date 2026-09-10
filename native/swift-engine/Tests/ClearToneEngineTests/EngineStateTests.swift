@@ -61,6 +61,28 @@ final class EngineStateTests: XCTestCase {
         processor.stop()
     }
 
+    func testRNNoiseClampsFutureFrameTimestampInsteadOfOverflowing() {
+        let publisher = EngineStatePublisher()
+        let output = VirtualMicrophoneOutput()
+        let processor = RNNoiseProcessor(publisher: publisher, virtualOutput: output)
+        processor.start(strength: 0.65)
+
+        let samples = [Float](repeating: 0.05, count: 480)
+        processor.feedSamples(
+            samples,
+            capturedAtNanoseconds: DispatchTime.now().uptimeNanoseconds + 50_000_000
+        )
+
+        let processed = expectation(description: "Future timestamp is clamped")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            XCTAssertGreaterThanOrEqual(publisher.snapshot.metrics.framesProcessed, 480)
+            XCTAssertEqual(publisher.snapshot.metrics.estimatedLatencyMs, 0)
+            processed.fulfill()
+        }
+        wait(for: [processed], timeout: 1)
+        processor.stop()
+    }
+
     func testVoiceEnhancementRemovesDCAndPreventsClipping() {
         let processor = VoiceEnhancementProcessor(preset: .broadcast)
         var samples = [Float](repeating: 1.5, count: 480)

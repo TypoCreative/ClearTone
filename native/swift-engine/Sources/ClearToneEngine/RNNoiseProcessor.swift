@@ -278,15 +278,21 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
 
     private func processSingleFrame(_ input: [Float], capturedAtNanoseconds: UInt64) {
         guard let st = state, input.count == frameSize else { return }
+        let measurementTime = DispatchTime.now().uptimeNanoseconds
+        let shouldEmitMetrics = lastMetricsEmitNanoseconds == 0
+            || (measurementTime >= lastMetricsEmitNanoseconds
+                && measurementTime - lastMetricsEmitNanoseconds >= metricsEmitIntervalNanoseconds)
+
         // RNNoise is trained for 16-bit PCM amplitude while AVAudioEngine supplies
         // normalized Float32 samples. Convert into the model domain, then back.
         var inputSumSquares = 0.0
         for index in 0..<frameSize {
             let sample = input[index]
             modelInputBuffer[index] = sample * 32_768
-            inputSumSquares += Double(sample * sample)
+            if shouldEmitMetrics {
+                inputSumSquares += Double(sample * sample)
+            }
         }
-        let inputRMS = sqrt(inputSumSquares / Double(frameSize))
 
         // Run RNNoise
         let speechProbability = rnnoise_process_frame(st, &outputBuffer, &modelInputBuffer)
@@ -302,12 +308,14 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             let normalizedOutput = max(-1, min(1, outputBuffer[index] / 32_768))
             let blendedOutput = input[index] * (1 - alpha) + normalizedOutput * alpha
             outputBuffer[index] = blendedOutput
-            denoisedSumSquares += Double(blendedOutput * blendedOutput)
+            if shouldEmitMetrics {
+                denoisedSumSquares += Double(blendedOutput * blendedOutput)
+            }
         }
-        let denoisedRMS = sqrt(denoisedSumSquares / Double(frameSize))
         let enhancedRMS = voiceEnhancement.process(
             &outputBuffer,
-            speechProbability: speechProbability
+            speechProbability: speechProbability,
+            measureOutputRMS: shouldEmitMetrics
         )
         var queueDepth = 0
         var outputDropped = false
@@ -319,23 +327,27 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             }
         }
 
-        // Compute noise reduction percentage
-        let reduction = inputRMS > 0
-            ? max(0, min(100, (1.0 - denoisedRMS / inputRMS) * 100))
-            : 0
-
         // Update metrics
         framesProcessed += 1
 
-        let nowNanoseconds = DispatchTime.now().uptimeNanoseconds
-        guard nowNanoseconds - lastMetricsEmitNanoseconds >= metricsEmitIntervalNanoseconds else {
-            return
-        }
-        lastMetricsEmitNanoseconds = nowNanoseconds
+        guard shouldEmitMetrics else { return }
+        lastMetricsEmitNanoseconds = measurementTime
 
+        let inputRMS = sqrt(inputSumSquares / Double(frameSize))
+        let denoisedRMS = sqrt(denoisedSumSquares / Double(frameSize))
+        let reduction = inputRMS > 0
+            ? max(0, min(100, (1.0 - denoisedRMS / inputRMS) * 100))
+            : 0
         let processedSamples = framesProcessed * frameSize
         let processingEnded = DispatchTime.now().uptimeNanoseconds
-        let captureToProcessedMs = Double(processingEnded - capturedAtNanoseconds) / 1_000_000
+        // A converted hardware buffer can contain more than one 10 ms frame.
+        // The estimated timestamp for a later frame may briefly be ahead of
+        // `DispatchTime.now()`. Unsigned subtraction traps in that case, so
+        // clamp latency to zero until the monotonic clock catches up.
+        let elapsedNanoseconds = processingEnded >= capturedAtNanoseconds
+            ? processingEnded - capturedAtNanoseconds
+            : 0
+        let captureToProcessedMs = Double(elapsedNanoseconds) / 1_000_000
         let queuedAudioMs = Double(queueDepth * frameSize) / 48_000 * 1_000
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }

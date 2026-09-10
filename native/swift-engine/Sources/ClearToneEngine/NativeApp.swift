@@ -14,6 +14,22 @@ final class ClearToneAppModel: ObservableObject {
     private let sampler = NativePerformanceSampler()
 
     var isProcessing: Bool { snapshot.phase == "processing" || snapshot.phase == "starting" }
+    var isProcessingTransitioning: Bool { snapshot.phase == "starting" || snapshot.phase == "stopping" }
+    var processingActionTitle: String {
+        switch snapshot.phase {
+        case "starting": "Starting…"
+        case "stopping": "Stopping…"
+        case "processing": "Stop Processing"
+        default: "Start Processing"
+        }
+    }
+    var processingActionIcon: String {
+        switch snapshot.phase {
+        case "starting", "stopping": "hourglass"
+        case "processing": "stop.fill"
+        default: "play.fill"
+        }
+    }
 
     init() {
         let runtime = EngineRuntime()
@@ -37,6 +53,8 @@ final class ClearToneAppModel: ObservableObject {
     }
 
     func toggleProcessing() {
+        guard !isProcessingTransitioning else { return }
+        actionError = nil
         send(type: isProcessing ? "stopProcessing" : "startProcessing")
     }
 
@@ -96,13 +114,13 @@ final class ClearToneAppModel: ObservableObject {
     func setTrayOnlyMode(_ enabled: Bool) {
         trayOnlyMode = enabled
         UserDefaults.standard.set(enabled, forKey: "trayOnlyMode")
+        ClearToneAppDelegate.applyPresentationMode(trayOnly: enabled)
         if enabled {
-            for window in NSApp.windows where window.title == "ClearTone" {
-                window.close()
+            // SwiftUI may update the Scene after this state mutation. Repeat
+            // close once on the next turn to catch that window as well.
+            DispatchQueue.main.async {
+                ClearToneAppDelegate.closeDesktopWindows()
             }
-            NSApp.setActivationPolicy(.accessory)
-        } else {
-            NSApp.setActivationPolicy(.regular)
         }
     }
 
@@ -429,6 +447,113 @@ private struct VirtualMicrophoneCard: View {
     }
 }
 
+private struct AudioRoutingGrid: View {
+    @EnvironmentObject private var model: ClearToneAppModel
+    let compact: Bool
+
+    private var inputDetail: String {
+        let inputID = model.snapshot.followSystemInput
+            ? model.snapshot.systemInputId
+            : model.snapshot.selectedInputId
+        return model.snapshot.inputs.first(where: { $0.id == inputID })?.name ?? "Microphone"
+    }
+
+    private var outputDetail: String {
+        if !model.snapshot.virtualMicrophone.available { return "Driver needed" }
+        return model.snapshot.virtualMicrophone.enabled ? "System default" : "Not routed"
+    }
+
+    var body: some View {
+        VStack(spacing: compact ? 10 : 13) {
+            HStack(spacing: compact ? 6 : 9) {
+                RoutingNode(
+                    title: "Input",
+                    detail: inputDetail,
+                    systemImage: "mic",
+                    tint: .secondary,
+                    compact: compact
+                )
+
+                RoutingArrow(active: model.isProcessing, compact: compact)
+
+                RoutingNode(
+                    title: "Voice Engine",
+                    detail: model.isProcessing ? "Processing" : "Ready",
+                    systemImage: "waveform",
+                    tint: model.isProcessing ? ClearToneStyle.success : ClearToneStyle.accent,
+                    compact: compact,
+                    emphasized: true
+                )
+
+                RoutingArrow(active: model.snapshot.virtualMicrophone.enabled, compact: compact)
+
+                RoutingNode(
+                    title: "Output",
+                    detail: outputDetail,
+                    systemImage: "mic.fill",
+                    tint: model.snapshot.virtualMicrophone.enabled ? ClearToneStyle.success : .secondary,
+                    compact: compact
+                )
+            }
+
+            VirtualMicrophoneCard(compact: compact)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct RoutingNode: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+    let compact: Bool
+    var emphasized = false
+
+    var body: some View {
+        VStack(spacing: compact ? 4 : 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: compact ? 13 : 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                .lineLimit(1)
+
+            Text(detail)
+                .font(.system(size: compact ? 9 : 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, minHeight: compact ? 56 : 72)
+        .padding(.horizontal, compact ? 4 : 7)
+        .background(
+            emphasized ? ClearToneStyle.accent.opacity(0.12) : Color.primary.opacity(0.045),
+            in: RoundedRectangle(cornerRadius: compact ? 11 : 14)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: compact ? 11 : 14)
+                .stroke(emphasized ? ClearToneStyle.accent.opacity(0.32) : Color.primary.opacity(0.07), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(detail)")
+    }
+}
+
+private struct RoutingArrow: View {
+    let active: Bool
+    let compact: Bool
+
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: compact ? 8 : 10, weight: .bold))
+            .foregroundStyle(active ? ClearToneStyle.accent : Color.secondary.opacity(0.45))
+            .accessibilityHidden(true)
+    }
+}
+
 private struct MetricsView: View {
     @EnvironmentObject private var model: ClearToneAppModel
     let compact: Bool
@@ -508,7 +633,7 @@ private struct ProcessingHero: View {
     @EnvironmentObject private var model: ClearToneAppModel
 
     var body: some View {
-        HStack(spacing: 22) {
+        VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(model.isProcessing ? "Your voice is being cleaned" : "Ready when you are")
                     .font(.title2.bold())
@@ -524,8 +649,8 @@ private struct ProcessingHero: View {
                     model.toggleProcessing()
                 } label: {
                     Label(
-                        model.isProcessing ? "Stop Processing" : "Start Processing",
-                        systemImage: model.isProcessing ? "stop.fill" : "play.fill"
+                        model.processingActionTitle,
+                        systemImage: model.processingActionIcon
                     )
                     .font(.headline)
                     .frame(minWidth: 150)
@@ -534,35 +659,15 @@ private struct ProcessingHero: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .tint(model.isProcessing ? Color.red.opacity(0.82) : ClearToneStyle.accent)
+                .disabled(model.isProcessingTransitioning)
                 .keyboardShortcut(.space, modifiers: [])
-                .accessibilityHint(model.isProcessing ? "Stops microphone processing" : "Starts microphone processing")
+                .accessibilityHint(
+                    model.isProcessingTransitioning
+                        ? "Wait for the microphone engine to finish changing state"
+                        : (model.isProcessing ? "Stops microphone processing" : "Starts microphone processing")
+                )
             }
 
-            Spacer(minLength: 12)
-
-            HStack(alignment: .center, spacing: 5) {
-                ForEach(0..<7, id: \.self) { index in
-                    Capsule()
-                        .fill(
-                            model.isProcessing
-                                ? LinearGradient(
-                                    colors: [ClearToneStyle.accent, ClearToneStyle.cyan],
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
-                                : LinearGradient(
-                                    colors: [Color.secondary.opacity(0.28), Color.secondary.opacity(0.14)],
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
-                        )
-                        .frame(width: 7, height: model.isProcessing ? CGFloat(20 + (index % 4) * 11) : 12)
-                }
-            }
-            .frame(width: 100, height: 70)
-            .padding(14)
-            .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
-            .accessibilityHidden(true)
         }
     }
 }
@@ -578,15 +683,27 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     dashboardHeader
 
-                    GlassCard(
-                        "Voice Engine",
-                        subtitle: "Local, private, and optimized for real-time speech",
-                        systemImage: "waveform"
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible())],
+                        alignment: .leading,
+                        spacing: 18
                     ) {
-                        ProcessingHero()
-                    }
+                        GlassCard(
+                            "Voice Engine",
+                            subtitle: "Local, private, and optimized for real-time speech",
+                            systemImage: "waveform"
+                        ) {
+                            ProcessingHero()
+                        }
 
-                    HStack(alignment: .top, spacing: 18) {
+                        GlassCard(
+                            "Audio Routing",
+                            subtitle: "Input, processing, and output in one place",
+                            systemImage: "point.3.connected.trianglepath.dotted"
+                        ) {
+                            AudioRoutingGrid(compact: false)
+                        }
+
                         GlassCard(
                             "Audio Setup",
                             subtitle: "Choose your source and voice character",
@@ -596,22 +713,12 @@ struct DashboardView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        VStack(spacing: 18) {
-                            GlassCard(
-                                "Output Routing",
-                                subtitle: "Send cleaned audio to every app",
-                                systemImage: "point.3.connected.trianglepath.dotted"
-                            ) {
-                                VirtualMicrophoneCard(compact: false)
-                            }
-
-                            GlassCard(
-                                "System Health",
-                                subtitle: "Small, low-frequency diagnostics",
-                                systemImage: "gauge.with.dots.needle.33percent"
-                            ) {
-                                MetricsView(compact: false)
-                            }
+                        GlassCard(
+                            "System Health",
+                            subtitle: "Small, low-frequency diagnostics",
+                            systemImage: "gauge.with.dots.needle.33percent"
+                        ) {
+                            MetricsView(compact: false)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -690,8 +797,8 @@ struct MenuBarView: View {
                     model.toggleProcessing()
                 } label: {
                     Label(
-                        model.isProcessing ? "Stop Processing" : "Start Processing",
-                        systemImage: model.isProcessing ? "stop.fill" : "play.fill"
+                        model.processingActionTitle,
+                        systemImage: model.processingActionIcon
                     )
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
@@ -700,10 +807,11 @@ struct MenuBarView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .tint(model.isProcessing ? Color.red.opacity(0.82) : ClearToneStyle.accent)
+                .disabled(model.isProcessingTransitioning)
 
                 VStack(spacing: 12) {
                     ControlPanel(compact: true)
-                    VirtualMicrophoneCard(compact: true)
+                    AudioRoutingGrid(compact: true)
                 }
                 .padding(14)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
@@ -730,7 +838,13 @@ struct MenuBarView: View {
                         "Tray Only",
                         isOn: Binding(
                             get: { model.trayOnlyMode },
-                            set: { enabled in model.setTrayOnlyMode(enabled) }
+                            set: { enabled in
+                                model.setTrayOnlyMode(enabled)
+                                if !enabled {
+                                    openWindow(id: "main")
+                                    NSApp.activate(ignoringOtherApps: true)
+                                }
+                            }
                         )
                     )
                     .toggleStyle(.switch)
