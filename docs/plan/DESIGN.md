@@ -1,166 +1,45 @@
----
-name: Shadcn
-foundation: "shadcn/ui"
-themes: ["light", "dark"]
-brandColors:
-  primary: "#3B82F6"
-  accent: "#8B5CF6"
-  success: "#16A34A"
-  warning: "#D97706"
-  destructive: "#DC2626"
-typography:
-  sans: "Inter"
-  mono: "ui-monospace"
-  scale: "12/14/16/18/20/24/30"
-  weights: "400, 500, 600, 700"
-rounded:
-  radius: 8px
-spacing:
-  sourceScale: "Tailwind default (4/8/12/16/24/32)"
----
+# Design System
 
-## Overview
+ClearTone uses native SwiftUI and AppKit components with macOS materials. There is
+no web renderer, CSS framework, shadcn, Tailwind, or custom font dependency.
 
-ClearTone uses a shadcn/ui-driven design system: Tailwind utilities + CSS variable tokens + accessible component primitives. The UI prioritizes clarity and scanability for a small utility dashboard and tray mini-popup.
+## Visual language
 
-## Foundations
+- The background uses the system window color with restrained blue and cyan
+  gradients.
+- Cards use `ultraThinMaterial`, 22 pt corner radii, one-pixel highlights, and soft
+  shadows to create an Apple-style glass hierarchy.
+- Blue indicates controls and the selected Voice Engine node. Green indicates
+  active processing or virtual routing. Red is reserved for stopping and errors;
+  orange represents transitions.
+- Typography uses the macOS system font. Rounded system faces and monospaced digits
+  are limited to headings and measurements where they improve scanning.
+- The existing `ClearTone.icns` remains the app icon. The menu-bar item uses a
+  monochrome SF Symbol at 16 pt within an 18 × 18 pt frame.
 
-- **Design system:** shadcn/ui conventions (Radix primitives + Tailwind + tokenized CSS variables)
-- **Themes:** light + dark (theme is applied by a `.dark` class on the root element)
-- **Typography goal:** modern, easy-to-read UI type with clear hierarchy for compact windows
-- **Layout goal:** two-row utility dashboard + tray mini-popup, optimized for quick interactions
+## Dashboard hierarchy
 
-## Typography
+The desktop window is a scrollable two-column grid with four primary cards:
 
-Primary font is Inter with a robust system fallback. Monospace is used for metrics/values when alignment improves readability.
+1. Voice Engine: status, explanation, and the primary Start/Stop action.
+2. Audio Routing: Input → Voice Engine → Output plus Virtual Microphone.
+3. Audio Setup: input picker, suppression slider, and voice-profile control.
+4. System Health: compact audio and process metrics.
 
-- **Sans stack:** `Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"`
-- **Mono stack:** `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`
+The decorative waveform previously shown at the right of Voice Engine is removed
+so the primary action and routing state carry the visual hierarchy.
 
-Recommended type roles:
+## Menu-bar interface
 
-- **Display / Title:** 24–30px, weight 600–700
-- **Section heading:** 16–18px, weight 600
-- **Body:** 14–16px, weight 400–500
-- **Label:** 12px, weight 500–600
-- **Metric value:** 14–18px, mono, weight 500–600
+The 380 pt menu-bar popup keeps the same interaction model in a compact layout. It
+includes Start/Stop, Audio Setup, the routing grid, Virtual Microphone, metrics,
+Tray Only, Open Window when applicable, and Quit.
 
-## Color Tokens (shadcn style)
+## Accessibility
 
-ClearTone uses shadcn-style semantic tokens (not raw hex in components). Tailwind should reference colors through `hsl(var(--token))`.
-
-Brand palette anchors:
-
-- **Primary:** `#3B82F6` (HSL ≈ `217 91% 60%`)
-- **Accent:** `#8B5CF6` (HSL ≈ `258 90% 66%`)
-- **Success:** `#16A34A` (HSL ≈ `142 76% 36%`)
-- **Warning:** `#D97706` (HSL ≈ `33 95% 44%`)
-- **Destructive:** `#DC2626` (HSL ≈ `0 72% 51%`)
-
-Baseline tokens (reference template):
-
-```css
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222 39% 11%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 222 39% 11%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 39% 11%;
-
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 258 90% 66%;
-  --secondary-foreground: 0 0% 100%;
-
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-
-  --accent: 258 90% 66%;
-  --accent-foreground: 0 0% 100%;
-
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 100%;
-
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 217 91% 60%;
-
-  --radius: 0.5rem;
-}
-
-.dark {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-
-  --card: 222 47% 14%;
-  --card-foreground: 210 40% 98%;
-
-  --popover: 222 47% 14%;
-  --popover-foreground: 210 40% 98%;
-
-  --primary: 217 91% 60%;
-  --primary-foreground: 222 47% 11%;
-
-  --secondary: 258 90% 66%;
-  --secondary-foreground: 222 47% 11%;
-
-  --muted: 217 33% 18%;
-  --muted-foreground: 215 20% 65%;
-
-  --accent: 258 90% 66%;
-  --accent-foreground: 222 47% 11%;
-
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 210 40% 98%;
-
-  --border: 217 33% 18%;
-  --input: 217 33% 18%;
-  --ring: 217 91% 60%;
-}
-```
-
-## Radius, Spacing, Elevation
-
-- **Radius:** `--radius = 8px` (0.5rem). Derive smaller/larger radii from this when needed.
-- **Spacing:** Tailwind scale is the source of truth; avoid custom spacing tokens unless required.
-- **Elevation:** prefer subtle `border` + `shadow-sm` over heavy shadows (especially in the tray popup).
-
-## Components (shadcn/ui targets)
-
-These are the intended shadcn component building blocks for the renderer UI:
-
-- Button (primary, secondary, ghost, destructive)
-- Card (for grouped blocks: device, strength, metrics)
-- Slider (strength)
-- Select (audio input device)
-- Switch (optional toggles)
-- Tooltip (explaining metrics)
-- Separator (row divisions)
-- Badge (engine status)
-- Progress (optional for activity/levels)
-
-## Layout Rules
-
-- **Top row (controls):** Start/Stop on the left; Device + Strength on the right
-- **Bottom row (metrics):** compact, aligned values; use mono for numeric readability
-- **Window sizes:** ensure controls remain usable in tray popup dimensions (short labels, clear hit targets)
-
-## Accessibility & Interaction
-
-- **Focus:** use focus-visible ring (`--ring`) and keep it clearly visible on both themes
-- **Hit targets:** minimum 32px; prefer 40px where space allows
-- **Contrast:** keep foreground/background contrast high for quick scanning
-- **Motion:** keep transitions subtle; respect reduced-motion preferences when implemented
-
-- **Primary (#3B82F6):** Token from style foundations.
-- **Secondary (#8B5CF6):** Token from style foundations.
-- **Success (#16A34A):** Token from style foundations.
-- **Warning (#D97706):** Token from style foundations.
-- **Danger (#DC2626):** Token from style foundations.
-- **Surface (#FFFFFF):** Token from style foundations.
-- **Text (#111827):** Token from style foundations.
-- **Neutral (#FFFFFF):** Derived from the surface token for official format compatibility.
+- Native controls preserve keyboard and VoiceOver behavior.
+- Decorative icons and backgrounds are hidden from accessibility.
+- Routing nodes expose combined labels containing their role and current state.
+- Transitioning Start/Stop controls are disabled and explain why through an
+  accessibility hint.
+- Error banners expose readable text and an explicit dismiss action.

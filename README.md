@@ -36,6 +36,7 @@ Current version: **0.2.1**
 | Live diagnostics | Shows input/output RMS, reduction, latency, dropped frames, and queue depth. |
 | Lightweight performance panel | Shows native process CPU and resident memory; GPU work is handled by the macOS compositor, with no ClearTone GPU helper process. |
 | Native dashboard and menu bar | Uses SwiftUI/AppKit controls with a compact tray-only mode. |
+| Visible audio route | Shows Input → Voice Engine → Output in both the dashboard and compact menu-bar interface, including live routing state. |
 | Accessibility | Provides native keyboard navigation, VoiceOver labels, scalable system fonts, semantic controls, and readable status/error messages. |
 | Local processing | Requires no upload, sign-in, or internet connection for audio processing. |
 
@@ -46,7 +47,7 @@ no browser renderer, Electron main process, network utility process, GPU helper,
 JSON subprocess bridge.
 
 ```text
-SwiftUI dashboard + menu bar
+SwiftUI dashboard + 18 × 18 pt macOS menu-bar item
              │
              ▼
 Native app model and settings
@@ -74,7 +75,7 @@ Zoom, Meet, Teams, Discord, OBS, recording apps
 | Noise reduction | RNNoise C library | Neural suppression on 480-sample frames at 48 kHz. |
 | Voice finishing | Native Swift DSP | Filtering, adaptive suppression, dereverb-lite, EQ, gain, compression, and limiting. |
 | Virtual device | Core Audio Audio Server Plug-in | Exposes processed output as a macOS input device. |
-| Build system | Swift Package Manager and Xcode command-line tools | Builds the app, HAL driver installer, signed bundle, and DMG. |
+| Build system | Swift Package Manager and Xcode command-line tools | Builds the app, HAL driver installer, application bundle, and DMG. |
 
 The real-time path retains the existing buffer reuse, 480-sample fast path, pooled
 virtual-output buffers, 1 Hz audio metrics, and delayed RNNoise cleanup. Moving the
@@ -89,9 +90,10 @@ This should substantially reduce idle RAM, CPU wakeups, application size, and
 process count.
 
 Exact memory and CPU depend on the microphone, macOS version, driver state, active
-window, and whether processing is running. Measure the newly installed native build
-before publishing a fixed number; an older app in `/Applications` does not represent
-this source tree.
+window, and whether processing is running. On the Apple Silicon development Mac,
+the verified 0.2.1 build measured about 60 MB physical memory while idle, 0–0.1%
+idle CPU, 16–28% of one CPU core while processing, and about 2.2 ms measured
+processing latency. These are development measurements, not guaranteed limits.
 
 ## Benefits
 
@@ -167,16 +169,18 @@ ClearTone/
 
 ### Signing
 
-For a local signed DMG, place `_dev-id-apple.p12` in the repository root and run
-`scripts/package-mac.sh`. The script asks for the certificate password without
-printing it, imports the identity into a temporary keychain, signs the native app
-and driver, then deletes the keychain.
+To build a DMG containing a Developer ID-signed app and driver, place
+`_dev-id-apple.p12` in the repository root and run `scripts/package-mac.sh`. The
+script asks for the certificate password without printing it, imports the identity
+into a temporary keychain, signs the native app and driver, then deletes the
+temporary keychain.
 
 A public release must use a valid **Developer ID Application** identity with its
 private key. GitHub Actions reads the base64-encoded certificate and password from
-`CSC_LINK` and `CSC_KEY_PASSWORD`. An unsigned/ad-hoc local build is suitable for
-development but not public Gatekeeper distribution. Notarization still requires
-separate Apple notary credentials and is not implied by code signing.
+`CSC_LINK` and `CSC_KEY_PASSWORD`. Local builds fall back to ad-hoc signing.
+Signing the installer package requires `CLEARTONE_INSTALLER_SIGN_IDENTITY`; the
+current release workflow does not set it. DMG notarization and stapling also require
+separate Apple notary credentials and are not implied by application code signing.
 
 ### Microphone Permission
 

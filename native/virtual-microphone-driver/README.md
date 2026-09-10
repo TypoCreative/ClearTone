@@ -10,10 +10,20 @@ sample and retains its MIT license in `LICENSE.txt`.
 Build with:
 
 ```sh
-npm run build:driver
+scripts/build-driver.sh
 ```
 
-The build creates a universal `.driver` bundle and an installer package under
-`apps/resources/driver`. Installation targets `/Library/Audio/Plug-Ins/HAL` and
-requires administrator approval. A logout or restart may be necessary before the
-device appears in Core Audio.
+The build creates a universal `.driver` bundle and the installer package at
+`native/swift-engine/Resources/driver/ClearToneVirtualMicrophone.pkg`. The app
+bundles this package and opens it when the user selects **Install Driver**.
+Installation targets `/Library/Audio/Plug-Ins/HAL`, requires administrator
+approval, and restarts Core Audio through the package's post-install script. If the
+device does not appear immediately, log out or restart macOS.
+
+The driver exposes a 48 kHz stereo Float32 duplex device. ClearTone writes cleaned
+frames to the output side; meeting and recording apps consume them from the input
+side. The app detects the driver by UID or name before enabling automatic routing.
+
+Local builds use ad-hoc signing by default. Set
+`CLEARTONE_DRIVER_SIGN_IDENTITY` to sign the driver and
+`CLEARTONE_INSTALLER_SIGN_IDENTITY` to sign the installer package for distribution.
