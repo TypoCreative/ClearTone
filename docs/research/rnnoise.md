@@ -59,7 +59,7 @@ rnnoise_process_frame(st, out, in);
 
 ### Option A: Bridging Header + Direct C (Recommended)
 ```
-native/swift-engine/
+apps/macos/native/swift-engine/
 ├── Sources/ClearToneEngine/
 │   ├── main.swift
 │   ├── rnnoise/               ← RNNoise C source copied here
@@ -171,7 +171,7 @@ As stated in DECISIONS.md ("RNNoise first"):
 
 ## Integration Checklist
 
-- [ ] Clone RNNoise source into native/swift-engine
+- [x] Vendor RNNoise source in `apps/macos/native/swift-engine`
 - [ ] Create bridging header with `#include "rnnoise.h"`
 - [ ] Update Package.swift with C settings
 - [ ] Build RNNoise as static library (or compile sources directly)

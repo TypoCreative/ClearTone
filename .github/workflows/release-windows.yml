@@ -1,0 +1,40 @@
+name: Build Windows ZIP
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Windows x64 unsigned
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build native Windows app
+        shell: pwsh
+        run: ./apps/windows/scripts/check.ps1
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: ./apps/windows/scripts/package.ps1 -SkipBuild
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ClearTone-windows-x64-unsigned
+          path: dist/ClearTone-*-windows-x64-unsigned.zip
+          if-no-files-found: error
+
+      - name: Upload ZIP to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/ClearTone-*-windows-x64-unsigned.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

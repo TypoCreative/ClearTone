@@ -1,38 +1,35 @@
 # Architecture Decisions
 
-## Native application
+## Platform roots
 
-ClearTone uses SwiftUI and AppKit instead of Electron. UI, settings, lifecycle, and
-audio coordination run in one process to reduce memory, CPU wakeups, bundle size,
-and helper-process count.
+All application-specific source now lives under exactly two platform roots:
+`apps/macos` and `apps/windows`. Root scripts remain only as macOS-compatible entry
+points so existing contributor commands continue to work.
 
-## Local real-time processing
+## Native UI and audio stacks
 
-Microphone audio remains on the Mac. RNNoise processes fixed 10 ms frames on a
-serial CPU queue. The workload is too small and sequential to justify Metal buffer
-transfer and dispatch overhead.
+macOS keeps SwiftUI/AppKit and AVAudioEngine/Core Audio. Windows uses Win32 and
+WASAPI rather than Electron, keeping memory, startup overhead, and process count
+small. Windows 11 Mica is requested when available and falls back safely on older
+supported Windows versions.
 
-## Core Audio virtual microphone
+## Shared suppression model
 
-A HAL Audio Server Plug-in exposes cleaned audio to other applications. Installation
-requires explicit administrator approval. The app never reports routing as enabled
-when the driver is unavailable.
+Windows CMake compiles the vendored RNNoise source already used by SwiftPM. This
+avoids two neural weight copies and keeps the core 10 ms suppression stage aligned.
+Platform-specific finishing remains separate until cross-platform listening tests
+justify matching it.
 
-## Explicit automatic routing
+## Windows routing boundary
 
-Automatic default-input switching occurs only after the user enables Virtual
-Microphone. The preference is stored locally; when enabled on a later launch,
-ClearTone restores routing and starts processing. Disabling routing or quitting
-normally restores the previous physical input when possible.
+The unsigned Windows release outputs through WASAPI. It does not pretend to expose
+a first-party virtual microphone. Production kernel endpoints require WDK work and
+Microsoft-approved signing; users who need call-app routing select an existing
+virtual audio cable as ClearTone's playback endpoint.
 
-## Native presentation
+## Signing policy
 
-The desktop dashboard and menu-bar popup share one app model. Tray Only uses the
-macOS accessory activation policy and closes normal desktop windows while preserving
-the menu-bar control.
-
-## Distribution
-
-Development builds use ad-hoc signing. Public distribution requires valid Developer
-ID identities, signed installer packaging, and notarization. These are distinct
-steps and must not be inferred from a successful local build.
+Windows application code signing and Microsoft driver signing are explicitly out
+of scope. CI verifies `ClearTone.exe` is `NotSigned`. macOS signing behavior is
+unchanged because removing Windows signing does not authorize weakening macOS
+release requirements.

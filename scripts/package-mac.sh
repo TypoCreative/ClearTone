@@ -4,7 +4,7 @@ set -euo pipefail
 project_root="${0:A:h:h}"
 architecture="${CLEARTONE_TARGET_ARCH:-$(uname -m)}"
 [[ "$architecture" == "x86_64" ]] && architecture="x64"
-version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$project_root/native/swift-engine/Resources/Info.plist")"
+version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$project_root/apps/macos/native/swift-engine/Resources/Info.plist")"
 dmg_path="$project_root/dist/ClearTone-$version-mac-$architecture.dmg"
 staging="$(mktemp -d /tmp/cleartone-dmg.XXXXXX)"
 temporary_keychain=""

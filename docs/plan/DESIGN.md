@@ -1,45 +1,28 @@
 # Design System
 
-ClearTone uses native SwiftUI and AppKit components with macOS materials. There is
-no web renderer, CSS framework, shadcn, Tailwind, or custom font dependency.
+ClearTone uses native platform controls and the existing ClearTone icon/logo.
+Neither platform ships a web renderer or custom-font dependency.
 
-## Visual language
+## Shared hierarchy
 
-- The background uses the system window color with restrained blue and cyan
-  gradients.
-- Cards use `ultraThinMaterial`, 22 pt corner radii, one-pixel highlights, and soft
-  shadows to create an Apple-style glass hierarchy.
-- Blue indicates controls and the selected Voice Engine node. Green indicates
-  active processing or virtual routing. Red is reserved for stopping and errors;
-  orange represents transitions.
-- Typography uses the macOS system font. Rounded system faces and monospaced digits
-  are limited to headings and measurements where they improve scanning.
-- The existing `ClearTone.icns` remains the app icon. The menu-bar item uses a
-  monochrome SF Symbol at 16 pt within an 18 × 18 pt frame.
+1. Voice Engine: obvious start/stop action and readable state.
+2. Audio Routing: physical/default input → Voice Engine → platform output.
+3. Audio Setup: strength and device/profile controls supported by that platform.
+4. Live Metrics: compact levels and processing health.
 
-## Dashboard hierarchy
+Status must not rely on color alone. Errors remain visible in text, controls keep
+keyboard focus, metrics avoid rapid announcements, and decorative visuals are
+excluded from accessibility semantics.
 
-The desktop window is a scrollable two-column grid with four primary cards:
+## macOS
 
-1. Voice Engine: status, explanation, and the primary Start/Stop action.
-2. Audio Routing: Input → Voice Engine → Output plus Virtual Microphone.
-3. Audio Setup: input picker, suppression slider, and voice-profile control.
-4. System Health: compact audio and process metrics.
+The current SwiftUI dashboard keeps its two-column glass card layout, system fonts,
+VoiceOver labels, scalable controls, and monochrome 16 pt menu-bar symbol in an
+18 × 18 pt frame. The original `.icns` remains unchanged.
 
-The decorative waveform previously shown at the right of Voice Engine is removed
-so the primary action and routing state carry the visual hierarchy.
+## Windows
 
-## Menu-bar interface
-
-The 380 pt menu-bar popup keeps the same interaction model in a compact layout. It
-includes Start/Stop, Audio Setup, the routing grid, Virtual Microphone, metrics,
-Tray Only, Open Window when applicable, and Quit.
-
-## Accessibility
-
-- Native controls preserve keyboard and VoiceOver behavior.
-- Decorative icons and backgrounds are hidden from accessibility.
-- Routing nodes expose combined labels containing their role and current state.
-- Transitioning Start/Stop controls are disabled and explain why through an
-  accessibility hint.
-- Error banners expose readable text and an explicit dismiss action.
+The Windows window uses Segoe UI Variable, a dark low-distraction canvas, native
+controls, standard tab navigation, high-DPI awareness, and Windows 11 Mica where
+supported. The system-tray icon is a multi-resolution `.ico` generated from the
+existing ClearTone PNG; the logo artwork itself is unchanged.

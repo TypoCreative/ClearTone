@@ -1,58 +1,57 @@
 # Architecture
 
-ClearTone 0.2.1 is a native macOS utility. The SwiftUI interface and audio engine
-run in one application process; there is no Electron, Chromium, Node.js runtime,
-renderer process, or subprocess JSON bridge.
+ClearTone 0.3.0 is a two-platform native product organized under `apps/macos`
+and `apps/windows`. Both variants process audio locally in one application
+process and share the vendored RNNoise C source and 48 kHz/480-sample frame model.
+
+## Repository boundaries
+
+| Area | Purpose |
+| --- | --- |
+| `apps/macos/native/swift-engine` | SwiftUI/AppKit app, AVAudioEngine capture, DSP, state, and tests. |
+| `apps/macos/native/virtual-microphone-driver` | Core Audio HAL virtual microphone and package source. |
+| `apps/macos/web` | Historical landing-page prototype; not shipped in the desktop app. |
+| `apps/windows/native` | Win32 UI, tray lifecycle, WASAPI engine, CMake project, and resources. |
+| `apps/windows/scripts` | PowerShell build and unsigned-artifact validation. |
+| `scripts` | macOS app, driver, tests, and DMG automation. |
+
+## macOS runtime
 
 ```text
-SwiftUI dashboard + MenuBarExtra
-              │
-              ▼
-ClearToneAppModel + EngineRuntime
-              │
-              ▼
-AudioDeviceManager + AVAudioEngine
-              │
-              ▼
-RNNoise (48 kHz, 480 samples) → Swift voice enhancement
-              │
-              ▼
-VirtualMicrophoneOutput buffer pool
-              │
-              ▼
-ClearTone Core Audio HAL driver
-              │
-              ▼
-Meeting, streaming, recording, and voice-chat apps
+SwiftUI/AppKit → AVAudioEngine/Core Audio → RNNoise → Swift voice finishing
+                                                     ↓
+                                  Core Audio HAL virtual microphone
 ```
 
-## Application layers
+The macOS app can select a physical input, apply Natural/Clear/Broadcast voice
+profiles, publish metrics, toggle the bundled HAL device, switch the default input,
+and restore the previous physical input.
 
-| Layer | Implementation | Responsibility |
-| --- | --- | --- |
-| Presentation | SwiftUI and AppKit | Dashboard, menu-bar popup, tray-only lifecycle, errors, settings, and accessibility. |
-| State and commands | `ClearToneAppModel`, `EngineStatePublisher`, `IPCCommandHandler` | Keeps UI state synchronized and serializes start, stop, input, strength, profile, and routing commands. The handler name is retained internally; it is not inter-process IPC. |
-| Capture | `AVAudioEngine` and Core Audio | Lists physical inputs, follows or selects an input, captures frames, and converts to 48 kHz mono when necessary. |
-| Noise reduction | RNNoise C | Processes every 480-sample frame without reducing the audio processing rate. |
-| Voice finishing | Native Swift DSP | Speech-aware suppression, high-pass filtering, dereverb-lite, EQ, automatic gain, compression, and limiting. |
-| Virtual output | `VirtualMicrophoneOutput` | Reuses bounded buffers and writes processed audio to the HAL device. |
-| Virtual device | Core Audio Audio Server Plug-in | Publishes ClearTone Virtual Microphone as an input available to other apps. |
+## Windows runtime
 
-## Runtime behavior
+```text
+Win32/Mica UI + tray → WASAPI default communications capture
+                              ↓
+                      RNNoise strength blend
+                              ↓
+               WASAPI selected playback endpoint
+```
 
-- Audio stays local and does not require an account or network connection.
-- Enabling Virtual Microphone selects it as the macOS default input and starts
-  processing if necessary.
-- Disabling routing or quitting normally restores the previous physical default
-  input when available.
-- Missing-driver and startup errors are reported in the same native UI.
-- Audio metrics update at 1 Hz; process CPU and memory update every 10 seconds.
-- GPU is not used for RNNoise. The performance panel reports GPU as system-managed
-  because macOS may composite the SwiftUI interface on the GPU.
+The Windows audio thread opts into MMCSS `Audio`, requests shared-mode automatic
+conversion to 48 kHz mono float, processes bounded 10 ms frames, and publishes
+atomic metrics to the UI twice per second. It has no Electron/Chromium process and
+performs no network requests. CPU and private-memory measurements are sampled by
+the UI timer without adding a monitoring thread; GPU remains unused because the
+small 10 ms RNNoise workload is CPU-efficient and does not benefit from transfer
+overhead.
+
+Windows does not bundle a kernel virtual-microphone driver. For call-app routing,
+the playback endpoint must be an already-installed virtual audio cable. An unsigned
+WDK driver would require Windows test mode and is not a normal end-user solution.
 
 ## Distribution
 
-Swift Package Manager builds the app. Xcode command-line tools build the universal
-HAL driver. Local builds are ad-hoc signed by default. Developer ID signing,
-installer-package signing, notarization, and stapling are separate distribution
-steps.
+- macOS: SwiftPM/Xcode scripts produce app, driver package, and DMG; published
+  releases retain the existing Developer ID policy.
+- Windows: Visual Studio 2022/CMake produces a portable x64 ZIP. App and driver
+  signing are intentionally absent, and no signing secrets are referenced.

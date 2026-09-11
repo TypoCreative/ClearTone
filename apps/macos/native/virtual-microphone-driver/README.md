@@ -14,7 +14,7 @@ scripts/build-driver.sh
 ```
 
 The build creates a universal `.driver` bundle and the installer package at
-`native/swift-engine/Resources/driver/ClearToneVirtualMicrophone.pkg`. The app
+`apps/macos/native/swift-engine/Resources/driver/ClearToneVirtualMicrophone.pkg`. The app
 bundles this package and opens it when the user selects **Install Driver**.
 Installation targets `/Library/Audio/Plug-Ins/HAL`, requires administrator
 approval, and restarts Core Audio through the package's post-install script. If the

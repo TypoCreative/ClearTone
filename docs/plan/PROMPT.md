@@ -1,12 +1,13 @@
 # Product Direction
 
-Build ClearTone as a lightweight native macOS microphone utility using SwiftUI,
-AppKit, AVAudioEngine, Core Audio, RNNoise, and a ClearTone HAL virtual microphone.
+Build ClearTone as a two-platform, lightweight native voice-clarity product.
 
-Keep audio local, make routing explicit and reversible, retain the existing app
-icon, support a desktop dashboard and compact Tray Only workflow, and prefer low
-latency and low idle resource use over unnecessary GPU or helper-process work.
-
-Documentation must distinguish implemented behavior from planned release work,
-especially driver installation, Developer ID signing, installer signing,
-notarization, and measured performance.
+- Keep macOS on SwiftUI/AppKit, AVAudioEngine/Core Audio, RNNoise, native Swift DSP,
+  and its existing HAL virtual microphone.
+- Keep Windows on Win32, WASAPI, RNNoise, CMake, and one low-overhead process.
+- Keep audio local and preserve the existing icon/logo.
+- Organize all platform source under `apps/macos` and `apps/windows`.
+- Treat the Windows portable artifact as intentionally unsigned and never imply
+  that it includes a production virtual microphone.
+- Ground documentation in implemented source and tested CI behavior, separating
+  current capability from planned parity work.

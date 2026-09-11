@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="${0:A:h:h}"
-package_path="$project_root/native/swift-engine"
+package_path="$project_root/apps/macos/native/swift-engine"
 app_path="$project_root/dist/ClearTone.app"
 contents="$app_path/Contents"
 target_arch="${CLEARTONE_TARGET_ARCH:-}"

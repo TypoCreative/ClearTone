@@ -6,5 +6,4 @@ out
 .build
 .swiftpm
 *.p12
-apps/electron/out
-apps/electron/dist
+/build/windows/

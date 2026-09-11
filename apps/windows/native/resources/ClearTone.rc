@@ -1,0 +1,29 @@
+#include <windows.h>
+
+101 ICON "ClearTone.ico"
+
+1 VERSIONINFO
+ FILEVERSION 0,3,0,0
+ PRODUCTVERSION 0,3,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Typo Creative\0"
+      VALUE "FileDescription", "ClearTone native voice clarity\0"
+      VALUE "FileVersion", "0.3.0\0"
+      VALUE "InternalName", "ClearTone\0"
+      VALUE "OriginalFilename", "ClearTone.exe\0"
+      VALUE "ProductName", "ClearTone\0"
+      VALUE "ProductVersion", "0.3.0\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

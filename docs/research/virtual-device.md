@@ -46,7 +46,7 @@ the Mac App Store.
 
 The implementation is adapted from Apple's `Creating an Audio Server Driver Plug-in`
 sample. Apple publishes that sample under the MIT license; the original license is
-retained in `native/virtual-microphone-driver/LICENSE.txt`.
+retained in `apps/macos/native/virtual-microphone-driver/LICENSE.txt`.
 
 ## References
 

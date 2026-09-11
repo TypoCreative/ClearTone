@@ -2,8 +2,8 @@
 set -euo pipefail
 
 project_root="${0:A:h:h}"
-driver_project="$project_root/native/virtual-microphone-driver"
-resources_directory="$project_root/native/swift-engine/Resources/driver"
+driver_project="$project_root/apps/macos/native/virtual-microphone-driver"
+resources_directory="$project_root/apps/macos/native/swift-engine/Resources/driver"
 workspace="$(mktemp -d /tmp/cleartone-driver.XXXXXX)"
 derived_data="$workspace/DerivedData"
 package_root="$workspace/package-root"

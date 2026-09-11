@@ -2,21 +2,27 @@
 
 ## Complete
 
-- [x] Replace Electron UI with a native SwiftUI/AppKit application.
-- [x] Capture and select physical microphones with AVAudioEngine/Core Audio.
-- [x] Integrate RNNoise at 48 kHz with 480-sample frames.
-- [x] Add native voice finishing and three voice profiles.
-- [x] Build the ClearTone Virtual Microphone HAL driver and installer.
-- [x] Add automatic default-input routing and restoration.
-- [x] Add dashboard, compact menu-bar controls, and Tray Only mode.
-- [x] Add Input → Voice Engine → Output routing visualization.
-- [x] Add audio and process performance diagnostics.
-- [x] Harden timestamp handling and start/stop transitions.
+- [x] Move platform code under `apps/macos` and `apps/windows`.
+- [x] Update macOS scripts, package aliases, and workflow paths.
+- [x] Preserve the existing macOS icon and reuse its artwork for Windows.
+- [x] Add native Windows Win32 UI and tray lifecycle.
+- [x] Add WASAPI capture/render with 48 kHz mono conversion.
+- [x] Compile and run RNNoise on 480-sample Windows frames.
+- [x] Add Windows status, strength, and compact live metrics.
+- [x] Add lightweight Windows CPU/private-memory metrics without a helper process.
+- [x] Add a Windows playback-device picker for virtual-cable routing.
+- [x] Add unsigned Windows quality and release workflows.
+- [x] Synchronize README and product-plan documentation.
 
-## Release work
+## Physical-platform validation
 
-- [ ] Supply a valid Developer ID Application certificate with its private key.
-- [ ] Configure Installer Developer ID signing for the driver package.
-- [ ] Add notarization and stapling.
-- [ ] Run CoreAudio integration tests outside the restricted sandbox.
-- [ ] Validate arm64 and x86_64 release artifacts on physical Macs.
+- [ ] Confirm the Windows build on GitHub Actions and a Windows 10 machine.
+- [ ] Confirm Windows 11 Mica, tray scaling, keyboard navigation, and screen reader.
+- [ ] Test default-device changes, unplug/replug, sleep/wake, and one-hour processing.
+- [ ] Compare Windows RNNoise output with macOS reference recordings.
+- [ ] Validate macOS Core Audio integration outside the restricted sandbox.
+
+## Deliberately excluded
+
+- [ ] Windows application code-signing certificate.
+- [ ] Windows WDK virtual-microphone driver and Microsoft driver signing.

@@ -1,15 +1,18 @@
 {
   "name": "cleartone",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "swift run --package-path native/swift-engine --disable-sandbox ClearTone",
+    "dev": "swift run --package-path apps/macos/native/swift-engine --disable-sandbox ClearTone",
     "build": "scripts/build-app.sh",
     "dist:mac": "scripts/package-mac.sh",
     "build:native": "scripts/build-app.sh",
     "build:driver": "scripts/build-driver.sh",
-    "test": "swift test --package-path native/swift-engine --disable-sandbox",
-    "check": "scripts/check.sh"
+    "test": "swift test --package-path apps/macos/native/swift-engine --disable-sandbox",
+    "check": "scripts/check.sh",
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/windows/scripts/build.ps1",
+    "check:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/windows/scripts/check.ps1",
+    "dist:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/windows/scripts/package.ps1"
   }
 }

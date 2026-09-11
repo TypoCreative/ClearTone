@@ -2,69 +2,48 @@
 
 ## Product
 
-ClearTone is a native macOS microphone utility that reduces background noise,
-improves speech clarity, and can expose the cleaned signal to other applications
-through ClearTone Virtual Microphone.
-
-Current version: **0.2.1 (build 3)**
-
-Minimum system: **macOS 13**
+ClearTone 0.3.0 is a local native microphone utility for macOS 13+ and Windows 10
+1903+/Windows 11. It reduces background noise with RNNoise and keeps audio on the
+device. macOS build number is 4.
 
 ## Goals
 
-- Provide real-time, local voice cleanup with low latency.
-- Let users configure the physical input, suppression strength, and voice profile
-  in one place.
-- Route cleaned audio to any macOS app with one explicit toggle.
-- Keep idle resource use and process count substantially below the previous
-  Electron architecture.
-- Provide clear error recovery when microphone permission, input devices, or the
-  virtual microphone driver are unavailable.
+- Provide low-latency 48 kHz, 10 ms local speech cleanup.
+- Keep one native application process and near-zero idle audio work.
+- Preserve the current macOS routing, accessibility, and performance behavior.
+- Provide a buildable Windows app and reproducible unsigned Windows release ZIP.
+- Describe virtual-device and signing limits accurately.
 
-## Current user experience
+## macOS requirements
 
-The dashboard uses a two-column native glass layout:
+- Select/follow the physical input and request permission only when starting.
+- Apply RNNoise plus Natural, Clear, or Broadcast finishing.
+- Toggle the ClearTone HAL virtual microphone and restore physical input routing.
+- Keep dashboard, menu bar, Tray Only, metrics, recovery, and accessibility flows.
 
-1. **Voice Engine** starts and stops processing.
-2. **Audio Routing** shows Input → Voice Engine → Output and controls Virtual
-   Microphone.
-3. **Audio Setup** selects the input, noise-reduction strength, and Natural, Clear,
-   or Broadcast profile.
-4. **System Health** shows audio metrics plus CPU, memory, GPU ownership, and
-   process count.
+## Windows requirements
 
-The menu-bar popup exposes the same essential controls in compact form. Tray Only
-hides the desktop window while keeping the menu-bar interface available. The tray
-symbol is monochrome and sized to the standard macOS menu-bar content area.
+- Capture the default communications microphone through WASAPI shared mode.
+- Request 48 kHz mono float conversion and process every complete 480-sample frame.
+- Blend cleaned/original audio using a 0–100% strength control.
+- List active playback endpoints, render to the selected endpoint, and support
+  virtual-cable routing without changing the system-wide playback default.
+- Offer Start/Stop, textual status, tray lifecycle, high-DPI UI, and live metrics.
+- Show compact CPU and private-memory use without adding a monitoring process.
+- Build with Visual Studio 2022/CMake without signing credentials.
 
-## Functional requirements
+## Non-goals for 0.3.0
 
-- Request microphone permission only when processing is started.
-- Follow the macOS default physical input or use a selected physical input.
-- Process 48 kHz mono audio in 480-sample RNNoise frames.
-- Keep processing quality unchanged when the metrics UI is idle.
-- Persist input selection, strength, voice profile, Virtual Microphone state, and
-  Tray Only preference locally.
-- When Virtual Microphone is enabled, start processing automatically and select
-  ClearTone as the macOS default input.
-- Restore the previous physical default input when routing is disabled or the app
-  terminates normally.
-- Offer the bundled driver installer when the HAL device is missing.
-- Prevent duplicate start/stop actions while the engine is transitioning.
-
-## Non-goals
-
-- Cloud audio processing, accounts, analytics, or synchronization.
-- GPU or Metal execution for RNNoise; its small sequential 10 ms workload remains
-  on CPU to avoid transfer and dispatch overhead.
-- Automatic installation of the HAL driver without macOS administrator approval.
-- Claiming Developer ID distribution or notarization for ad-hoc local builds.
+- A Windows WDK virtual microphone or automatic endpoint switching.
+- Windows app certificate, driver certificate, SmartScreen reputation, MSI/MSIX,
+  or Microsoft Store distribution.
+- Cloud processing, accounts, analytics, or synchronization.
+- Claiming macOS and Windows voice-finishing parity before listening tests.
 
 ## Acceptance criteria
 
-- The app builds as a native arm64 or x86_64 macOS application.
-- Start Processing produces live input/output metrics without crashing.
-- Virtual Microphone is enabled only when the driver is detected.
-- Tray Only leaves no desktop window and remains controllable from the menu bar.
-- Idle CPU returns near zero after processing stops.
-- VoiceOver identifies engine state, routing nodes, controls, metrics, and errors.
+- macOS tests and app bundle build pass after all path moves.
+- Windows CMake Release x64 build passes on GitHub Actions.
+- Windows check confirms the generated executable is unsigned.
+- Release workflows produce macOS DMGs and an unsigned portable Windows ZIP.
+- Documentation contains no obsolete root `native/` or root `web/` build path.

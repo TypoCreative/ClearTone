@@ -54,7 +54,7 @@ jobs:
           sw_vers
           xcodebuild -version
           swift --version
-          head -n 1 native/swift-engine/Package.swift
+          head -n 1 apps/macos/native/swift-engine/Package.swift
 
       - name: Build DMG
         run: |

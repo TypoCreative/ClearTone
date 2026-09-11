@@ -1,30 +1,28 @@
 # Roadmap
 
-## Shipped in 0.2.1
+## Implemented in 0.3.0
 
-- Native SwiftUI/AppKit dashboard and menu-bar interface.
-- Core Audio input selection and automatic default-input following.
-- RNNoise processing with Natural, Clear, and Broadcast voice profiles.
-- ClearTone Virtual Microphone HAL driver and bundled installer.
-- One-toggle routing with automatic processing and physical-input restoration.
-- Tray Only mode, accessible controls, live metrics, and low-frequency performance
-  monitoring.
-- Crash protection for future frame timestamps and guarded engine transitions.
-- Reusable buffers and reduced per-frame diagnostics overhead.
+- Platform structure under `apps/macos` and `apps/windows`.
+- Existing native macOS app, HAL driver, landing prototype, and icons relocated
+  without replacing artwork.
+- Native Windows Win32 tray app with WASAPI capture/render and RNNoise processing.
+- Windows output picker, strength control, textual route, status, audio metrics,
+  and low-frequency CPU/private-memory metrics.
+- Windows quality and release workflows producing an unsigned portable x64 ZIP.
+- Root command aliases and macOS scripts updated for the new paths.
 
-## Release readiness
+## Validation before publishing 0.3.0
 
-- Validate the signed app and driver with a current Developer ID Application
-  certificate.
-- Add an Installer Developer ID identity for the `.pkg`.
-- Add Apple notarization and stapling to the public release workflow.
-- Run the full CoreAudio integration suite on an unrestricted macOS host.
-- Measure processing on several Intel and Apple Silicon devices and publish a
-  performance range.
+- Run the Windows workflow on GitHub-hosted Windows and inspect the produced ZIP.
+- Perform microphone, output, unplug/replug, sleep/wake, and long-run tests on a
+  physical Windows 10 and Windows 11 machine.
+- Perform listening comparisons before porting macOS voice-finishing profiles.
+- Run the full Core Audio suite on an unrestricted macOS host.
 
 ## Later candidates
 
-- Device-change stress testing across USB, Bluetooth, and aggregate devices.
-- Optional diagnostic export with explicit user consent.
-- Additional voice profiles only when listening tests show a clear benefit.
-- Driver update and version health checks in the app.
+- Windows device pickers and persisted device selection.
+- Native Windows finishing profiles after quality validation.
+- Optional first-party Windows virtual microphone only if WDK maintenance and
+  Microsoft signing become explicit product requirements.
+- Apple notarization/stapling and broader Intel/Apple Silicon measurements.
