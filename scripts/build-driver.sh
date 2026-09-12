@@ -33,5 +33,8 @@ if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then
   package_arguments+=(--sign "$CLEARTONE_INSTALLER_SIGN_IDENTITY")
 fi
 pkgbuild "${package_arguments[@]}" "$resource_package"
+if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then
+  pkgutil --check-signature "$resource_package"
+fi
 chmod 644 "$resource_package"
 echo "Built $resource_package"

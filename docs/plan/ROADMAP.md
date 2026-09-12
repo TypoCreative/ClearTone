@@ -8,7 +8,11 @@
 - Native Windows Win32 tray app with WASAPI capture/render and RNNoise processing.
 - Windows output picker, strength control, textual route, status, audio metrics,
   and low-frequency CPU/private-memory metrics.
-- Windows quality and release workflows producing an unsigned portable x64 ZIP.
+- Unsigned Windows quality validation and signed Windows release x64 ZIP.
+- Direct GitHub Release upload for Windows so Actions artifact quota is not a
+  release blocker.
+- One OS-aware `npm run build` command with certificate preflight and
+  post-build signature verification for macOS and Windows.
 - Root command aliases and macOS scripts updated for the new paths.
 
 ## Validation before publishing 0.3.0

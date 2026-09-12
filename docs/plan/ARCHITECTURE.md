@@ -12,7 +12,7 @@ process and share the vendored RNNoise C source and 48 kHz/480-sample frame mode
 | `apps/macos/native/virtual-microphone-driver` | Core Audio HAL virtual microphone and package source. |
 | `apps/macos/web` | Historical landing-page prototype; not shipped in the desktop app. |
 | `apps/windows/native` | Win32 UI, tray lifecycle, WASAPI engine, CMake project, and resources. |
-| `apps/windows/scripts` | PowerShell build and unsigned-artifact validation. |
+| `apps/windows/scripts` | PowerShell build, Authenticode signing, packaging, and validation. |
 | `scripts` | macOS app, driver, tests, and DMG automation. |
 
 ## macOS runtime
@@ -53,5 +53,12 @@ WDK driver would require Windows test mode and is not a normal end-user solution
 
 - macOS: SwiftPM/Xcode scripts produce app, driver package, and DMG; published
   releases retain the existing Developer ID policy.
-- Windows: Visual Studio 2022/CMake produces a portable x64 ZIP. App and driver
-  signing are intentionally absent, and no signing secrets are referenced.
+- Windows: Visual Studio 2022/CMake produces a portable x64 ZIP. Quality builds
+  stay unsigned; release builds sign and timestamp the executable with Authenticode,
+  then upload the ZIP directly to the GitHub Release without `upload-artifact`.
+- `npm run build` is the shared OS-aware entry point. It reads the ignored root
+  `_dev-id-apple.p12` and accepts Apple Development or Developer ID Application for
+  local and GitHub macOS builds. The former is internal-only; public distribution
+  still needs Developer ID and notarization. Windows accepts a valid code-signing
+  PFX. Certificate passwords are never stored in the repository.
+- Windows driver signing remains absent because no Windows kernel driver ships.

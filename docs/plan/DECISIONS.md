@@ -22,14 +22,25 @@ justify matching it.
 
 ## Windows routing boundary
 
-The unsigned Windows release outputs through WASAPI. It does not pretend to expose
+The Windows application outputs through WASAPI. It does not pretend to expose
 a first-party virtual microphone. Production kernel endpoints require WDK work and
 Microsoft-approved signing; users who need call-app routing select an existing
 virtual audio cable as ClearTone's playback endpoint.
 
 ## Signing policy
 
-Windows application code signing and Microsoft driver signing are explicitly out
-of scope. CI verifies `ClearTone.exe` is `NotSigned`. macOS signing behavior is
-unchanged because removing Windows signing does not authorize weakening macOS
-release requirements.
+Quality CI verifies its temporary `ClearTone.exe` is `NotSigned`, keeping pull
+requests independent of secrets. Release CI requires Authenticode application
+signing and verifies status `Valid` before packaging. The release ZIP is attached
+directly to the GitHub Release so Actions artifact quota cannot block publishing.
+Microsoft driver signing is still out of scope because ClearTone does not ship a
+Windows kernel driver.
+
+Both release workflows call `npm run build`. The OS-aware Node entry point uses
+the root `_dev-id-apple.p12` on macOS, requests a hidden password for local builds,
+and delegates to native platform tools. GitHub reconstructs that ignored file from
+the base64 `CSC_LINK` secret and removes it with an `always()` cleanup step. macOS
+accepts the current Apple Development identity locally and in GitHub so both paths
+behave consistently. Those artifacts are internal-only; a public release still
+requires Developer ID Application. An optional Developer ID Installer identity
+signs the embedded driver package when present in the P12.

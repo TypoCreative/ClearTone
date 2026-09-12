@@ -6,4 +6,5 @@ out
 .build
 .swiftpm
 *.p12
+*.pfx
 /build/windows/

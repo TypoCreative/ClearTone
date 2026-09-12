@@ -11,7 +11,7 @@ device. macOS build number is 4.
 - Provide low-latency 48 kHz, 10 ms local speech cleanup.
 - Keep one native application process and near-zero idle audio work.
 - Preserve the current macOS routing, accessibility, and performance behavior.
-- Provide a buildable Windows app and reproducible unsigned Windows release ZIP.
+- Provide a buildable Windows app and reproducible signed Windows release ZIP.
 - Describe virtual-device and signing limits accurately.
 
 ## macOS requirements
@@ -30,12 +30,13 @@ device. macOS build number is 4.
   virtual-cable routing without changing the system-wide playback default.
 - Offer Start/Stop, textual status, tray lifecycle, high-DPI UI, and live metrics.
 - Show compact CPU and private-memory use without adding a monitoring process.
-- Build with Visual Studio 2022/CMake without signing credentials.
+- Build quality artifacts without credentials and release artifacts with a valid
+  application code-signing certificate.
 
 ## Non-goals for 0.3.0
 
 - A Windows WDK virtual microphone or automatic endpoint switching.
-- Windows app certificate, driver certificate, SmartScreen reputation, MSI/MSIX,
+- Windows driver certificate/signing, guaranteed SmartScreen reputation, MSI/MSIX,
   or Microsoft Store distribution.
 - Cloud processing, accounts, analytics, or synchronization.
 - Claiming macOS and Windows voice-finishing parity before listening tests.
@@ -44,6 +45,7 @@ device. macOS build number is 4.
 
 - macOS tests and app bundle build pass after all path moves.
 - Windows CMake Release x64 build passes on GitHub Actions.
-- Windows check confirms the generated executable is unsigned.
-- Release workflows produce macOS DMGs and an unsigned portable Windows ZIP.
+- Windows quality check confirms its generated executable is unsigned.
+- Release workflows require and verify signed macOS DMGs and a signed Windows EXE
+  inside the portable ZIP.
 - Documentation contains no obsolete root `native/` or root `web/` build path.

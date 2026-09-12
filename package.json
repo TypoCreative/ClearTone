@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "swift run --package-path apps/macos/native/swift-engine --disable-sandbox ClearTone",
-    "build": "scripts/build-app.sh",
+    "build": "node scripts/build-signed.mjs",
     "dist:mac": "scripts/package-mac.sh",
+    "dist:signed": "npm run build",
     "build:native": "scripts/build-app.sh",
     "build:driver": "scripts/build-driver.sh",
     "test": "swift test --package-path apps/macos/native/swift-engine --disable-sandbox",

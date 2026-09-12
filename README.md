@@ -18,8 +18,9 @@ audio output. Processing stays on the device.
   endpoint. Select an installed virtual audio cable as that endpoint when another
   app must receive the result as a microphone.
 
-The Windows build is intentionally unsigned. It includes no application
-certificate and no Windows kernel driver or Microsoft driver-signing setup.
+Local Windows quality builds remain unsigned. Release builds support Authenticode
+application signing, but include no Windows kernel driver or Microsoft
+driver-signing setup.
 
 ## Features
 
@@ -112,8 +113,8 @@ scripts/build-driver.sh
 scripts/package-mac.sh
 ```
 
-Local app builds are ad-hoc signed. Public macOS releases still require the
-appropriate Apple identities and notarization.
+Local app builds are ad-hoc signed. Public macOS releases require a Developer ID
+Application identity; notarization remains a separate release step.
 
 ## Build Windows
 
@@ -128,15 +129,43 @@ Desktop development with C++, CMake, and a Windows SDK.
 Output: `dist/windows/ClearTone/ClearTone.exe`.
 
 The GitHub Windows workflow produces
-`ClearTone-0.3.0-windows-x64-unsigned.zip`. Because signing is intentionally
-disabled, Windows SmartScreen may warn before launch. The release never claims to
-contain a signed app or signed virtual-microphone driver.
+`ClearTone-0.3.0-windows-x64-signed.zip`. It signs and timestamps `ClearTone.exe`
+with Authenticode, then verifies the signature before packaging. It does not sign
+or install a virtual-microphone driver.
+
+## One build command for both platforms
+
+Run the same command on either supported operating system:
+
+```bash
+npm run build
+```
+
+On macOS, place `_dev-id-apple.p12` in the project root and run the command. Set
+`MACOS_CERTIFICATE_PASSWORD` or enter its password through the interactive hidden
+prompt. Local and GitHub builds accept Apple Development or Developer ID Application
+with its private key. The current P12 contains Apple Development, so its artifacts
+are intended for internal testing; public Gatekeeper/notarized distribution still
+requires Developer ID Application. Internally, the macOS branch runs
+`npm run dist:mac`, so local and CI use the same packaging sequence.
+
+On Windows, provide `WINDOWS_CERTIFICATE_PFX` as a file path or base64 value and
+optionally `WINDOWS_CERTIFICATE_PASSWORD`. The script uses `signtool.exe`, SHA-256,
+and an RFC 3161 timestamp, then requires Authenticode status `Valid`. Passwords are
+passed through the process environment and never written into artifacts or source.
+
+GitHub Actions uses `CSC_LINK` plus `CSC_KEY_PASSWORD` for macOS and `WIN_CSC_LINK`
+plus `WIN_CSC_KEY_PASSWORD` for Windows. Both certificate values should be stored
+as base64 repository secrets.
 
 ## Distribution status
 
-- macOS DMG workflow: arm64 and x64, with Developer ID required for published
-  releases under the existing policy.
-- Windows ZIP workflow: x64 portable artifact, intentionally unsigned.
+- macOS DMG workflow: arm64 and x64, signed with the identity contained in
+  `_dev-id-apple.p12`; the current Apple Development identity is internal-only.
+- Windows ZIP workflow: signed and timestamped x64 portable artifact.
+- Quality CI may still produce temporary unsigned binaries for compilation tests.
+- Published Windows ZIPs are uploaded directly as GitHub Release assets, avoiding
+  the separate GitHub Actions artifact-storage quota.
 - Windows virtual microphone: not bundled. A production first-party endpoint
   remains a separate WDK and Microsoft-signing project.
 

@@ -10,5 +10,7 @@ WASAPI playback endpoint. To expose that stream as an input in Zoom, Teams, OBS,
 Discord, or another app, use an already-installed virtual audio cable as the
 playback endpoint and select its paired microphone endpoint in the destination.
 
-No certificate, driver package, silent installer, or signing secret is included in
-this repository or requested by the Windows workflows.
+No driver certificate, driver package, or silent installer is included. The
+Windows release workflow requests only an application code-signing certificate;
+that certificate signs `ClearTone.exe` and is never used to claim or sign a
+virtual-microphone driver.

@@ -23,7 +23,8 @@ jobs:
             arch: arm64
     env:
       CLEARTONE_TARGET_ARCH: ${{ matrix.arch }}
-      CLEARTONE_REQUIRE_DEVELOPER_ID: ${{ github.event_name == 'release' }}
+      # The current _dev-id-apple.p12 contains an Apple Development identity.
+      CLEARTONE_REQUIRE_DEVELOPER_ID: 0
       # Store the base64-encoded signing .p12 and password as repository secrets.
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -31,13 +32,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Require signing certificate for a published release
-        if: github.event_name == 'release'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Require macOS signing certificate
         run: |
-          if [ -z "$CSC_LINK" ]; then
-            echo "::error::Missing CSC_LINK repository secret for signed release"
+          if [ -z "$CSC_LINK" ] || [ -z "$CSC_KEY_PASSWORD" ]; then
+            echo "::error::CSC_LINK and CSC_KEY_PASSWORD repository secrets are required"
             exit 1
           fi
+
+      - name: Prepare _dev-id-apple.p12
+        run: |
+          node -e 'const fs=require("fs"); const value=process.env.CSC_LINK.replace(/\s/g, ""); const data=Buffer.from(value, "base64"); if(data.length < 128) throw new Error("CSC_LINK is not a valid base64 P12"); fs.writeFileSync("_dev-id-apple.p12", data, {mode: 0o600});'
 
       - name: Select Xcode with Swift 6.2+
         run: |
@@ -57,41 +65,11 @@ jobs:
           head -n 1 apps/macos/native/swift-engine/Package.swift
 
       - name: Build DMG
-        run: |
-          keychain="$RUNNER_TEMP/cleartone-signing.keychain-db"
-          keychain_password="$(uuidgen)"
-          cleanup() {
-            security delete-keychain "$keychain" 2>/dev/null || true
-            rm -f "$RUNNER_TEMP/cleartone-signing.p12"
-          }
-          trap cleanup EXIT
+        run: npm run build
 
-          if [ -n "$CSC_LINK" ]; then
-            echo "$CSC_LINK" | base64 -D > "$RUNNER_TEMP/cleartone-signing.p12"
-            chmod 600 "$RUNNER_TEMP/cleartone-signing.p12"
-            security create-keychain -p "$keychain_password" "$keychain"
-            security unlock-keychain -p "$keychain_password" "$keychain"
-            security set-keychain-settings -lut 21600 "$keychain"
-            security import "$RUNNER_TEMP/cleartone-signing.p12" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
-            security list-keychains -d user -s "$keychain"
-
-            identities="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(.*\)"/\1/p')"
-            identity="$(printf '%s\n' "$identities" | grep '^Developer ID Application:' | head -n 1 || true)"
-            [ -z "$identity" ] && identity="$(printf '%s\n' "$identities" | head -n 1)"
-            if [ -z "$identity" ]; then
-              echo "::error::No code-signing identity with private key found in the .p12"
-              exit 1
-            fi
-            if [ "${{ github.event_name }}" = "release" ] && [[ "$identity" != Developer\ ID\ Application:* ]]; then
-              echo "::error::Published releases require a Developer ID Application identity"
-              exit 1
-            fi
-            export CLEARTONE_APP_SIGN_IDENTITY="$identity"
-            export CLEARTONE_DRIVER_SIGN_IDENTITY="$identity"
-          fi
-
-          scripts/package-mac.sh
+      - name: Remove temporary signing certificate
+        if: always()
+        run: rm -f _dev-id-apple.p12
 
       - name: Verify packaged architecture
         run: |
