@@ -30,7 +30,7 @@ cp -R "$built_driver" "$staged_driver"
 rm -f "$resource_package"
 package_arguments=(--root "$package_root" --identifier com.typocreative.cleartone.virtual-microphone.installer --version "$version" --install-location / --scripts "$driver_project/Scripts")
 if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then
-  package_arguments+=(--sign "$CLEARTONE_INSTALLER_SIGN_IDENTITY")
+  package_arguments+=(--sign "$CLEARTONE_INSTALLER_SIGN_IDENTITY" --timestamp)
 fi
 pkgbuild "${package_arguments[@]}" "$resource_package"
 if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then

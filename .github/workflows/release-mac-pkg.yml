@@ -23,11 +23,17 @@ jobs:
             arch: arm64
     env:
       CLEARTONE_TARGET_ARCH: ${{ matrix.arch }}
-      # The current _dev-id-apple.p12 contains an Apple Development identity.
-      CLEARTONE_REQUIRE_DEVELOPER_ID: 0
+      # Public assets must pass Developer ID signing, notarization and Gatekeeper.
+      CLEARTONE_REQUIRE_DEVELOPER_ID: 1
       # Store the base64-encoded signing .p12 and password as repository secrets.
       CSC_LINK: ${{ secrets.MAC_CSC_LINK || secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+      MAC_INSTALLER_CSC_LINK: ${{ secrets.MAC_INSTALLER_CSC_LINK }}
+      CLEARTONE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CSC_KEY_PASSWORD }}
+      MAC_NOTARY_KEY_BASE64: ${{ secrets.MAC_NOTARY_KEY_BASE64 }}
+      CLEARTONE_NOTARY_KEY_PATH: ${{ runner.temp }}/cleartone-notary.p8
+      CLEARTONE_NOTARY_KEY_ID: ${{ secrets.MAC_NOTARY_KEY_ID }}
+      CLEARTONE_NOTARY_ISSUER_ID: ${{ secrets.MAC_NOTARY_ISSUER_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,10 +48,24 @@ jobs:
             echo "::error::CSC_LINK and CSC_KEY_PASSWORD repository secrets are required"
             exit 1
           fi
+          if [ -z "$MAC_NOTARY_KEY_BASE64" ] || [ -z "$CLEARTONE_NOTARY_KEY_ID" ]; then
+            echo "::error::MAC_NOTARY_KEY_BASE64 and MAC_NOTARY_KEY_ID are required (plus MAC_NOTARY_ISSUER_ID for a team API key)"
+            exit 1
+          fi
 
       - name: Prepare _dev-id-apple.p12
         run: |
-          node -e 'const fs=require("fs"); const value=process.env.CSC_LINK.replace(/\s/g, ""); const data=Buffer.from(value, "base64"); if(data.length < 128) throw new Error("CSC_LINK is not a valid base64 P12"); fs.writeFileSync("_dev-id-apple.p12", data, {mode: 0o600});'
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          function decode(value, path) {
+            const data = Buffer.from(value.replace(/\s/g, ""), "base64");
+            if (data.length < 128) throw new Error("Invalid signing/notary secret: " + path);
+            fs.writeFileSync(path, data, {mode: 0o600});
+          }
+          decode(process.env.CSC_LINK, "_dev-id-apple.p12");
+          if (process.env.MAC_INSTALLER_CSC_LINK) decode(process.env.MAC_INSTALLER_CSC_LINK, "_dev-id-installer.p12");
+          decode(process.env.MAC_NOTARY_KEY_BASE64, process.env.CLEARTONE_NOTARY_KEY_PATH);
+          NODE
 
       - name: Select Xcode with Swift 6.2+
         run: |
@@ -69,7 +89,7 @@ jobs:
 
       - name: Remove temporary signing certificate
         if: always()
-        run: rm -f _dev-id-apple.p12
+        run: rm -f _dev-id-apple.p12 _dev-id-installer.p12 "$CLEARTONE_NOTARY_KEY_PATH"
 
       - name: Verify packaged architecture
         run: |
@@ -87,6 +107,9 @@ jobs:
             exit 1
           fi
           pkgutil --payload-files "$package" | grep -q '^\./Applications/ClearTone.app/Contents/MacOS/ClearTone$'
+          pkgutil --check-signature "$package"
+          xcrun stapler validate "$package"
+          spctl --assess --type install --verbose=2 "$package"
           shasum -a 256 "$package" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload PKG to Release

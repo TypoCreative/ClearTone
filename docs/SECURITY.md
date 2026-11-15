@@ -45,3 +45,12 @@ pass Gatekeeper before its installation scripts can run.
 Apple distribution requirements:
 https://developer.apple.com/developer-id/
 https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
+
+## Public installer correction
+
+The public build now requires Developer ID Application and Developer ID Installer,
+notarizes/staples the embedded driver PKG and final app PKG, and requires Gatekeeper
+acceptance before upload. Apple Development is rejected for public builds.
+`tests/test_macos_distribution.py` exercises failure gates with stubbed Apple tools;
+real notarization remains unverified until distribution credentials are configured.
+See `MACOS_DISTRIBUTION.md` for setup and the limitations of existing v0.3.0 assets.

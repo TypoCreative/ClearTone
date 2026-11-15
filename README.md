@@ -142,34 +142,48 @@ Run the same command on either supported operating system:
 npm run build
 ```
 
-On macOS, place `_dev-id-apple.p12` in the project root and run the command. Set
-`CLEARTONE_MAC_CERTIFICATE_PASSWORD` (or `MACOS_CERTIFICATE_PASSWORD` /
-`CSC_KEY_PASSWORD`) or enter its password through the interactive hidden
-prompt. Local and GitHub builds accept Apple Development or Developer ID Application
-with its private key. The current P12 contains Apple Development, so its artifacts
-are intended for internal testing; public Gatekeeper/notarized distribution still
-requires Developer ID Application. Internally, the macOS branch runs
-`npm run dist:mac`, so local and CI use the same packaging sequence. The output is
-`dist/ClearTone-0.3.0-mac-<arch>.pkg`; installation places ClearTone in
-`/Applications` and its post-install script verifies the installed ClearTone bundle and removes only
-its quarantine attribute on the selected target volume. Cleanup errors fail the
-installation instead of silently reporting success. Bundle relocation is disabled.
-The same cleanup can be run manually with `scripts/clear-quarantine.sh`.
+On macOS, `npm run build` produces a **public distribution** PKG and requires:
+
+- Developer ID Application identity with its private key (`_dev-id-apple.p12`
+  or `CLEARTONE_APP_SIGN_IDENTITY` from your Keychain).
+- Developer ID Installer identity with its private key (in the same P12,
+  `_dev-id-installer.p12`, or `CLEARTONE_INSTALLER_SIGN_IDENTITY`).
+- Notarization credentials: `CLEARTONE_NOTARY_PROFILE`, or an App Store Connect
+  API key using `CLEARTONE_NOTARY_KEY_PATH`, `CLEARTONE_NOTARY_KEY_ID`, and
+  `CLEARTONE_NOTARY_ISSUER_ID` for a team key.
+
+Set `CLEARTONE_MAC_CERTIFICATE_PASSWORD` (or `MACOS_CERTIFICATE_PASSWORD` /
+`CSC_KEY_PASSWORD`), or use the hidden interactive prompt. A separate Installer
+P12 can use `CLEARTONE_INSTALLER_CERTIFICATE_PASSWORD`.
+
+The build signs and notarizes the nested HAL driver installer before embedding
+it, then signs, notarizes and staples the final app installer. It requires
+Gatekeeper acceptance before reporting success. Apple Development and unsigned
+installers are rejected for public builds.
+
+Output: `dist/ClearTone-0.3.0-mac-<arch>.pkg`. Installation places ClearTone in
+`/Applications` on the selected volume, verifies its bundle/signature and removes
+only its quarantine attribute. See [distribution setup](docs/MACOS_DISTRIBUTION.md).
 
 On Windows, provide `WINDOWS_CERTIFICATE_PFX` as a file path or base64 value and
 optionally `WINDOWS_CERTIFICATE_PASSWORD`. The script uses `signtool.exe`, SHA-256,
 and an RFC 3161 timestamp, then requires Authenticode status `Valid`. Passwords are
 passed through the process environment and never written into artifacts or source.
 
-GitHub Actions uses `CSC_LINK` plus `CSC_KEY_PASSWORD` for macOS and `WIN_CSC_LINK`
-plus `WIN_CSC_KEY_PASSWORD` for Windows. Both certificate values should be stored
-as base64 repository secrets.
+GitHub Actions uses `MAC_CSC_LINK` / `MAC_CSC_KEY_PASSWORD` (with legacy
+`CSC_LINK` / `CSC_KEY_PASSWORD` fallbacks) for the Developer ID Application P12.
+`MAC_INSTALLER_CSC_LINK` / `MAC_INSTALLER_CSC_KEY_PASSWORD` optionally supply a
+separate Developer ID Installer P12. `MAC_NOTARY_KEY_BASE64`, `MAC_NOTARY_KEY_ID`
+and `MAC_NOTARY_ISSUER_ID` configure notarization. P12 and P8 contents are base64
+repository secrets. Windows uses `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`.
 
 ## Distribution status
 
-- macOS PKG workflow: arm64 and x64. The app is signed with the identity contained
-  in `_dev-id-apple.p12`; the current Apple Development identity is internal-only.
-  A public trusted PKG additionally requires a Developer ID Installer identity.
+- macOS PKG workflow: arm64 and x64. Public upload requires Developer ID signing,
+  Apple notarization, a stapled ticket, and Gatekeeper acceptance.
+- Existing v0.3.0 assets were published with Apple Development app signatures and
+  unsigned PKGs. They are internal test artifacts and may be blocked by Gatekeeper.
+  They are not retroactively notarized by this pipeline change.
 - Windows ZIP workflow: signed and timestamped x64 portable artifact.
 - Quality CI may still produce temporary unsigned binaries for compilation tests.
 - Published Windows ZIPs are uploaded directly as GitHub Release assets, avoiding

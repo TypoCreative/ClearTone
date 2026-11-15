@@ -99,11 +99,14 @@ let completed = false;
 try {
   if (process.platform === "darwin") {
     const path = join(projectRoot, "_dev-id-apple.p12");
-    if (!existsSync(path)) {
-      fail("_dev-id-apple.p12 is missing from the project root.");
+    if (!existsSync(path) && !process.env.CLEARTONE_APP_SIGN_IDENTITY) {
+      fail("Provide _dev-id-apple.p12 or CLEARTONE_APP_SIGN_IDENTITY for Developer ID signing.");
     }
-    chmodSync(path, 0o600);
-    run("npm", ["run", "dist:mac"], process.env);
+    if (existsSync(path)) chmodSync(path, 0o600);
+    run("npm", ["run", "dist:mac"], {
+      ...process.env,
+      CLEARTONE_REQUIRE_DEVELOPER_ID: "1",
+    });
   } else if (process.platform === "win32") {
     const path = certificatePath(
       process.env.WINDOWS_CERTIFICATE_PFX ?? process.env.WIN_CSC_LINK,
