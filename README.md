@@ -4,7 +4,70 @@ ClearTone is a lightweight, local microphone-enhancement app. It reduces
 background noise and improves voice clarity without Electron, cloud processing,
 accounts, or audio uploads.
 
-Current version: **0.3.0** (macOS build 4)
+Current version: **0.3.1** (macOS build 5)
+
+## How to install
+
+Download the DMG from https://github.com/TypoCreative/ClearTone/releases/latest:
+choose **arm64** for Apple silicon (M1/M2/M3/M4 or newer) or **x64** for Intel.
+This build is **not notarized by Apple**, so macOS may require manual approval.
+Only approve a ClearTone download you trust from this repository.
+
+1. Open `ClearTone-0.3.1-mac-<arch>.dmg`.
+2. Drag **ClearTone.app** to **Applications**.
+3. Eject the DMG, then open **ClearTone** from Applications.
+4. If macOS blocks it, use either method below.
+
+### Option A — Privacy & Security
+
+1. Try opening ClearTone once. On the warning, choose **Done**, not Move to Trash.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll to the ClearTone security notice and choose **Open Anyway**.
+4. Authenticate if asked, then choose **Open**.
+
+To open the settings pane from Terminal:
+
+```bash
+open "x-apple.systempreferences:com.apple.preference.security?Privacy"
+```
+
+If the DMG itself is blocked, use the same Open Anyway steps for that DMG first.
+Apple's instructions: https://support.apple.com/en-us/102445
+
+### Option B — Terminal quarantine cleanup
+
+After copying ClearTone to Applications, run:
+
+```bash
+codesign --verify --deep --strict "/Applications/ClearTone.app"
+sudo xattr -dr com.apple.quarantine "/Applications/ClearTone.app"
+open "/Applications/ClearTone.app"
+```
+
+Run the cleanup only if signature verification succeeds. `sudo` asks for your Mac
+login password; no characters appear while typing. These commands remove only the
+quarantine attribute from ClearTone, including its bundled driver installer.
+They do not disable Gatekeeper globally or notarize the app.
+
+If you cannot open the DMG at all, remove quarantine from that exact download
+first, then open it. Example for Apple silicon in the default Downloads folder:
+
+```bash
+xattr -d com.apple.quarantine "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
+open "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
+```
+
+Use `mac-x64.dmg` for Intel and adjust the path if your download is elsewhere.
+“No such xattr” means that file already has no quarantine attribute.
+
+### Microphone and virtual driver
+
+Allow microphone access when prompted. In ClearTone, choose **Install Driver**
+if the virtual microphone is unavailable, and follow the driver installer prompts.
+If the bundled driver installer is blocked, approve that specific installer in
+Privacy & Security, or use Option B on the installed app and retry Install Driver.
+Restart or log out if ClearTone asks, then select **ClearTone Virtual Microphone**
+in your meeting or recording app.
 
 ## What it does
 
@@ -41,7 +104,7 @@ driver-signing setup.
 ## Architecture
 
 ```text
-                              ClearTone 0.3.0
+                              ClearTone 0.3.1
                                      │
                  ┌───────────────────┴───────────────────┐
                  │                                       │
@@ -93,7 +156,7 @@ ClearTone/
 │   └── windows/
 │       ├── native/                         # Win32/WASAPI/CMake application
 │       └── scripts/                        # PowerShell build and checks
-├── scripts/                                # macOS build, driver, test, PKG
+├── scripts/                                # macOS build, driver, test, DMG
 ├── docs/                                   # Current plan and research history
 └── .github/workflows/                      # macOS and Windows quality/releases
 ```
@@ -114,8 +177,8 @@ scripts/package-mac.sh
 scripts/clear-quarantine.sh
 ```
 
-Local app builds are ad-hoc signed. Public macOS releases require a Developer ID
-Application identity; notarization remains a separate release step.
+Local app builds are ad-hoc signed. Apple-trusted macOS distribution requires Developer ID signing
+and notarization. Current DMG releases use the manual approval steps above.
 
 ## Build Windows
 
@@ -130,7 +193,7 @@ Desktop development with C++, CMake, and a Windows SDK.
 Output: `dist/windows/ClearTone/ClearTone.exe`.
 
 The GitHub Windows workflow produces
-`ClearTone-0.3.0-windows-x64-signed.zip`. It signs and timestamps `ClearTone.exe`
+`ClearTone-0.3.1-windows-x64-signed.zip`. It signs and timestamps `ClearTone.exe`
 with Authenticode, then verifies the signature before packaging. It does not sign
 or install a virtual-microphone driver.
 
@@ -142,28 +205,16 @@ Run the same command on either supported operating system:
 npm run build
 ```
 
-On macOS, `npm run build` produces a **public distribution** PKG and requires:
+On macOS, `npm run build` produces a DMG using `_dev-id-apple.p12` or an
+installed Keychain identity selected by `CLEARTONE_APP_SIGN_IDENTITY`. Set
+`CLEARTONE_MAC_CERTIFICATE_PASSWORD` (or `MACOS_CERTIFICATE_PASSWORD` /
+`CSC_KEY_PASSWORD`), or enter the P12 password at the hidden prompt.
 
-- Developer ID Application identity with its private key (`_dev-id-apple.p12`
-  or `CLEARTONE_APP_SIGN_IDENTITY` from your Keychain).
-- Developer ID Installer identity with its private key (in the same P12,
-  `_dev-id-installer.p12`, or `CLEARTONE_INSTALLER_SIGN_IDENTITY`).
-- Notarization credentials: `CLEARTONE_NOTARY_PROFILE`, or an App Store Connect
-  API key using `CLEARTONE_NOTARY_KEY_PATH`, `CLEARTONE_NOTARY_KEY_ID`, and
-  `CLEARTONE_NOTARY_ISSUER_ID` for a team key.
-
-Set `CLEARTONE_MAC_CERTIFICATE_PASSWORD` (or `MACOS_CERTIFICATE_PASSWORD` /
-`CSC_KEY_PASSWORD`), or use the hidden interactive prompt. A separate Installer
-P12 can use `CLEARTONE_INSTALLER_CERTIFICATE_PASSWORD`.
-
-The build signs and notarizes the nested HAL driver installer before embedding
-it, then signs, notarizes and staples the final app installer. It requires
-Gatekeeper acceptance before reporting success. Apple Development and unsigned
-installers are rejected for public builds.
-
-Output: `dist/ClearTone-0.3.0-mac-<arch>.pkg`. Installation places ClearTone in
-`/Applications` on the selected volume, verifies its bundle/signature and removes
-only its quarantine attribute. See [distribution setup](docs/MACOS_DISTRIBUTION.md).
+Apple Development signing is supported for the current manual-install builds.
+Output: `dist/ClearTone-0.3.1-mac-<arch>.dmg`, containing ClearTone.app, an
+Applications shortcut and `HOW_TO_INSTALL.md`. There is no top-level PKG or
+automatic quarantine cleanup. The virtual microphone driver retains its bundled
+PKG, installed from the app's **Install Driver** action.
 
 On Windows, provide `WINDOWS_CERTIFICATE_PFX` as a file path or base64 value and
 optionally `WINDOWS_CERTIFICATE_PASSWORD`. The script uses `signtool.exe`, SHA-256,
@@ -171,19 +222,15 @@ and an RFC 3161 timestamp, then requires Authenticode status `Valid`. Passwords 
 passed through the process environment and never written into artifacts or source.
 
 GitHub Actions uses `MAC_CSC_LINK` / `MAC_CSC_KEY_PASSWORD` (with legacy
-`CSC_LINK` / `CSC_KEY_PASSWORD` fallbacks) for the Developer ID Application P12.
-`MAC_INSTALLER_CSC_LINK` / `MAC_INSTALLER_CSC_KEY_PASSWORD` optionally supply a
-separate Developer ID Installer P12. `MAC_NOTARY_KEY_BASE64`, `MAC_NOTARY_KEY_ID`
-and `MAC_NOTARY_ISSUER_ID` configure notarization. P12 and P8 contents are base64
-repository secrets. Windows uses `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`.
+`CSC_LINK` / `CSC_KEY_PASSWORD` fallbacks) for the base64 signing P12 and password.
+Windows uses `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`.
 
 ## Distribution status
 
-- macOS PKG workflow: arm64 and x64. Public upload requires Developer ID signing,
-  Apple notarization, a stapled ticket, and Gatekeeper acceptance.
-- Existing v0.3.0 assets were published with Apple Development app signatures and
-  unsigned PKGs. They are internal test artifacts and may be blocked by Gatekeeper.
-  They are not retroactively notarized by this pipeline change.
+- macOS DMG workflow: arm64 and x64, with manual installation instructions.
+  The current app is signed with Apple Development and is not notarized.
+- v0.3.0 PKGs are superseded by v0.3.1 DMGs. Switching to DMG does not remove
+  Gatekeeper warnings; use the scoped allow steps in **How to install** above.
 - Windows ZIP workflow: signed and timestamped x64 portable artifact.
 - Quality CI may still produce temporary unsigned binaries for compilation tests.
 - Published Windows ZIPs are uploaded directly as GitHub Release assets, avoiding
@@ -205,13 +252,10 @@ shared by macOS and Windows; upstream tracking and local patches are recorded in
 and UndefinedBehaviorSanitizer, and a release app build. `npm audit --audit-level=low`
 is enforced in quality CI. Windows CTest also runs the RNNoise regression checks.
 
-For a local PKG without a signing certificate:
+For a local ad-hoc signed DMG without a signing certificate:
 
 ```bash
 CLEARTONE_APP_SIGN_IDENTITY=- CLEARTONE_DRIVER_SIGN_IDENTITY=- npm run dist:mac
 ```
 
-This produces an ad-hoc signed app inside an unsigned installer for local testing.
-Quarantine cleanup after installation does not notarize the installer or bypass
-Gatekeeper's initial check of a downloaded PKG. Public distribution requires Developer ID
-Application, Developer ID Installer, and Apple notarization.
+The resulting DMG is not notarized. See **How to install** for manual approval.

@@ -29,28 +29,20 @@ application contains no security vulnerabilities.
 index errors, and ordinary built-in inference. macOS runs it with ASan and UBSan;
 Windows CTest runs the same assertions, including in Release builds.
 
-## Installer safeguards and verification boundary
+## DMG distribution and verification boundary
 
-The PKG installs `/Applications/ClearTone.app` on the selected volume. App bundle
-relocation is disabled. Preinstall rejects symlink destinations; postinstall checks
-the bundle identifier and code signature before removing only `com.apple.quarantine`.
-Failures propagate to Installer. No global Gatekeeper setting is changed.
+ClearTone 0.3.1 returns to drag-and-drop DMG distribution. The current build is
+not notarized and can require explicit approval in Privacy & Security. The scoped
+Terminal alternative removes only `com.apple.quarantine` from ClearTone.app.
+No global Gatekeeper setting is changed. The old top-level PKG postinstall scripts
+and mandatory-notarization workflow are retired; they could not make an installer
+open before its first Gatekeeper check.
 
-Local verification uses an ad-hoc app signature and unsigned PKG. Installing with
-administrator privileges, signing with distribution identities, notarization,
-Windows execution, and testing downloaded installers on another Mac remain separate
-verification steps. Quarantine removal cannot make an untrusted downloaded PKG
-pass Gatekeeper before its installation scripts can run.
+DMG staging contains the app, an Applications shortcut, and the install guide.
+Temporary signing keychains remain outside the staged disk image. CI checks the
+mounted contents, app signature and binary architecture before upload. Real
+microphone permission prompts and manual approval on another Mac remain user checks.
+The app's HAL driver still uses an embedded PKG installer.
 
-Apple distribution requirements:
-https://developer.apple.com/developer-id/
-https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
-
-## Public installer correction
-
-The public build now requires Developer ID Application and Developer ID Installer,
-notarizes/staples the embedded driver PKG and final app PKG, and requires Gatekeeper
-acceptance before upload. Apple Development is rejected for public builds.
-`tests/test_macos_distribution.py` exercises failure gates with stubbed Apple tools;
-real notarization remains unverified until distribution credentials are configured.
-See `MACOS_DISTRIBUTION.md` for setup and the limitations of existing v0.3.0 assets.
+See [macOS distribution](MACOS_DISTRIBUTION.md) and
+[How to install](HOW_TO_INSTALL_MACOS.md).

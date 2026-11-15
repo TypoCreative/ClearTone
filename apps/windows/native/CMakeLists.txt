@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(ClearToneWindows VERSION 0.3.0 LANGUAGES C CXX)
+project(ClearToneWindows VERSION 0.3.1 LANGUAGES C CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "ClearTone Windows must be built with a Windows toolchain")

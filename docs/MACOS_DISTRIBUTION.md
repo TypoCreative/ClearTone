@@ -1,81 +1,44 @@
-# macOS distribution setup
+# macOS distribution
 
-The v0.3.0 downloaded PKG is blocked before Installer runs because it was unsigned
-and not notarized. Its nested application used Apple Development. Postinstall
-quarantine cleanup cannot run until macOS allows the installer to open.
+ClearTone 0.3.1 restores DMG distribution. The current account does not have active
+Apple Developer Program membership, so the build accepts Apple Development
+signing and does not request notarization. It must not be described as verified
+by Apple. The previous top-level PKG and its postinstall cleanup are retired.
 
-## Required credentials
+## Build and release
 
-An active Apple Developer Program account must supply:
+`npm run build` on macOS uses `_dev-id-apple.p12` or a Keychain identity selected
+by `CLEARTONE_APP_SIGN_IDENTITY`. Set `CLEARTONE_MAC_CERTIFICATE_PASSWORD` (also
+accepts `MACOS_CERTIFICATE_PASSWORD` or `CSC_KEY_PASSWORD`).
 
-1. **Developer ID Application**, including its private key, to sign the app and HAL driver.
-2. **Developer ID Installer**, including its private key, to sign both PKGs.
-3. Apple notarization credentials: a stored `notarytool` Keychain profile locally,
-   or an App Store Connect API key authorized for notarization in CI.
-
-Apple Development cannot replace either Developer ID certificate. Do not put
-passwords, P12 files or P8 keys in source control or chat.
-
-## Local public build
-
-Export the identities to `_dev-id-apple.p12` and `_dev-id-installer.p12`, or select
-already installed Keychain identities with `CLEARTONE_APP_SIGN_IDENTITY` and
-`CLEARTONE_INSTALLER_SIGN_IDENTITY`. The driver defaults to the app identity.
-If importing P12s, set `CLEARTONE_MAC_CERTIFICATE_PASSWORD` and optionally
-`CLEARTONE_INSTALLER_CERTIFICATE_PASSWORD` in your local process environment.
-
-Store notarization credentials interactively using Apple's tool:
+`npm run dist:mac` also supports explicit ad-hoc signing for local checks:
 
 ```bash
-xcrun notarytool store-credentials ClearToneNotary
-CLEARTONE_NOTARY_PROFILE=ClearToneNotary npm run build
+CLEARTONE_APP_SIGN_IDENTITY=- CLEARTONE_DRIVER_SIGN_IDENTITY=- npm run dist:mac
 ```
 
-Alternatively supply `CLEARTONE_NOTARY_KEY_PATH` and `CLEARTONE_NOTARY_KEY_ID`;
-team API keys also require `CLEARTONE_NOTARY_ISSUER_ID`.
+Output: `dist/ClearTone-0.3.1-mac-<arch>.dmg`. It contains only ClearTone.app,
+an Applications shortcut and HOW_TO_INSTALL.md. Temporary signing keychains are
+stored outside the image staging folder and removed after the build.
 
-## GitHub Actions secrets
+GitHub's release-mac-dmg workflow builds arm64 and x64. It uses `MAC_CSC_LINK` and
+`MAC_CSC_KEY_PASSWORD`, with legacy `CSC_LINK` / `CSC_KEY_PASSWORD` fallbacks.
+Application signature, binary architecture, and mounted DMG contents are checked
+before upload. These checks do not imply notarization or Gatekeeper acceptance.
 
-| Secret | Value |
-| --- | --- |
-| `MAC_CSC_LINK` | Base64 Developer ID Application P12 (may also contain Installer identity) |
-| `MAC_CSC_KEY_PASSWORD` | P12 password |
-| `MAC_INSTALLER_CSC_LINK` | Optional separate base64 Developer ID Installer P12 |
-| `MAC_INSTALLER_CSC_KEY_PASSWORD` | Separate Installer P12 password; defaults to app P12 password |
-| `MAC_NOTARY_KEY_BASE64` | Base64 App Store Connect P8 private key |
-| `MAC_NOTARY_KEY_ID` | API key ID |
-| `MAC_NOTARY_ISSUER_ID` | Issuer ID for team keys; omit for individual keys |
+## Installation
 
-Run the workflow on the updated branch for validation before publishing a new
-release. The existing v0.3.0 tag continues to reference its original workflow;
-rerunning it does not use these fixes. Do not move an already published tag.
+See [How to install](HOW_TO_INSTALL_MACOS.md), also included in README and the DMG.
+Users can explicitly allow ClearTone through Privacy & Security or remove only
+its quarantine attribute in Terminal. No global Gatekeeper setting is changed.
+The HAL virtual microphone still uses its embedded driver PKG through Install Driver.
 
-## Publication checks
+## Future notarized distribution
 
-The build notarizes and staples the nested driver installer before embedding it
-in ClearTone.app. The final PKG is signed and submitted separately. Only an
-`Accepted` response can proceed to stapling. Rejection, timeout, signature failure,
-missing credentials or Gatekeeper rejection fails the build and prevents upload.
-
-```bash
-pkgutil --check-signature dist/ClearTone-0.3.0-mac-arm64.pkg
-xcrun stapler validate dist/ClearTone-0.3.0-mac-arm64.pkg
-spctl --assess --type install --verbose=2 dist/ClearTone-0.3.0-mac-arm64.pkg
-```
-
-An unsigned local test build is still available through `npm run dist:mac` with
-`CLEARTONE_APP_SIGN_IDENTITY=- CLEARTONE_DRIVER_SIGN_IDENTITY=-`. This does not
-produce a trusted downloadable installer. No global Gatekeeper setting is changed.
-
-## Current verification boundary
-
-Release gate tests exercise accepted/rejected/timed-out notarization responses
-using stubs; they do not claim real Apple acceptance. Live signing, submission,
-stapling and downloaded-installer testing require the credentials above. The local
-Keychain currently contains only Apple Development; GitHub has only the app P12
-secrets, without notarization credentials.
+Removing manual approval requires active Apple Developer Program membership,
+Developer ID Application, and Apple notarization. A separately distributed PKG
+also needs Developer ID Installer. The current workflow does not provide this.
 
 Sources:
+- https://support.apple.com/en-us/102445
 - https://developer.apple.com/developer-id/
-- https://developer.apple.com/help/account/certificates/create-developer-id-certificates/
-- https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution

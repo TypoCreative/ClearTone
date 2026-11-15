@@ -41,8 +41,7 @@ the root `_dev-id-apple.p12` on macOS, requests a hidden password for local buil
 and delegates to native platform tools. GitHub reconstructs that ignored file from
 the base64 `CSC_LINK` secret and removes it with an `always()` cleanup step. macOS
 accepts the current Apple Development identity locally and in GitHub so both paths
-behave consistently. Those artifacts are internal-only; a public release still
-requires Developer ID Application. An optional Developer ID Installer identity
-signs both the embedded driver package and the top-level application PKG when
-present in the P12. The top-level PKG installs ClearTone in `/Applications` and
-runs the scoped quarantine cleanup script after installation.
+behave consistently. These builds are not notarized and require manual
+approval, documented in README, release notes and the DMG install guide. macOS
+releases use DMG drag-and-drop installation again; there is no top-level PKG or
+postinstall quarantine cleanup. The HAL driver retains its embedded PKG.
