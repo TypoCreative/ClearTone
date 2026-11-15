@@ -13,6 +13,7 @@
 - [x] Add a Windows playback-device picker for virtual-cable routing.
 - [x] Keep Windows quality builds unsigned and sign Windows release artifacts.
 - [x] Upload Windows ZIP directly to GitHub Releases without `upload-artifact`.
+- [x] Add macOS PKG packaging with `/Applications` installation and quarantine cleanup.
 - [x] Use `npm run build` as the single signed build command for macOS and Windows.
 - [x] Synchronize README and product-plan documentation.
 

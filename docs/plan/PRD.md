@@ -46,6 +46,6 @@ device. macOS build number is 4.
 - macOS tests and app bundle build pass after all path moves.
 - Windows CMake Release x64 build passes on GitHub Actions.
 - Windows quality check confirms its generated executable is unsigned.
-- Release workflows require and verify signed macOS DMGs and a signed Windows EXE
+- Release workflows build macOS PKGs with a signed app and a signed Windows EXE
   inside the portable ZIP.
 - Documentation contains no obsolete root `native/` or root `web/` build path.

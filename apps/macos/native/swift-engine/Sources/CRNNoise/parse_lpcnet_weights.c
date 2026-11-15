@@ -30,14 +30,16 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <stdint.h>
 #include "nnet.h"
 
 #define SPARSE_BLOCK_SIZE 32
 
 static int parse_record(const void **data, int *len, WeightArray *array) {
   WeightHead *h = (WeightHead *)*data;
-  if (*len < WEIGHT_BLOCK_SIZE) return -1;
-  if (h->block_size < h->size) return -1;
+  if (*len < WEIGHT_BLOCK_SIZE || (uintptr_t)*data % sizeof(int) != 0) return -1;
+  if (h->block_size < h->size || h->block_size % sizeof(int) != 0) return -1;
   if (h->block_size > *len-WEIGHT_BLOCK_SIZE) return -1;
   if (h->name[sizeof(h->name)-1] != 0) return -1;
   if (h->size < 0) return -1;
@@ -55,7 +57,11 @@ int parse_weights(WeightArray **list, const void *data, int len)
 {
   int nb_arrays=0;
   int capacity=20;
-  *list = calloc(capacity*sizeof(WeightArray), 1);
+  if (list == NULL) return -1;
+  *list = NULL;
+  if (data == NULL || len <= 0) return -1;
+  *list = calloc(capacity, sizeof(WeightArray));
+  if (*list == NULL) return -1;
   while (len > 0) {
     int ret;
     WeightArray array = {NULL, 0, 0, 0};
@@ -63,8 +69,12 @@ int parse_weights(WeightArray **list, const void *data, int len)
     if (ret > 0) {
       if (nb_arrays+1 >= capacity) {
         /* Make sure there's room for the ending NULL element too. */
+        WeightArray *grown;
+        if (capacity > INT_MAX/3) { free(*list); *list = NULL; return -1; }
         capacity = capacity*3/2;
-        *list = realloc(*list, capacity*sizeof(WeightArray));
+        grown = realloc(*list, (size_t)capacity*sizeof(WeightArray));
+        if (grown == NULL) { free(*list); *list = NULL; return -1; }
+        *list = grown;
       }
       (*list)[nb_arrays++] = array;
     } else {
@@ -100,20 +110,22 @@ static const void *find_idx_check(const WeightArray *arrays, const char *name, i
   const int *idx;
   const WeightArray *a = find_array_entry(arrays, name);
   *total_blocks = 0;
-  if (a == NULL) return NULL;
+  if (a->name == NULL || a->size < 0 || a->size % sizeof(int) != 0) return NULL;
+  if (a->data == NULL || (uintptr_t)a->data % sizeof(int) != 0) return NULL;
   idx = a->data;
   remain = a->size/sizeof(int);
   while (remain > 0) {
     int nb_blocks;
     int i;
     nb_blocks = *idx++;
-    if (remain < nb_blocks+1) return NULL;
+    if (nb_out < 8 || nb_blocks < 0 || nb_blocks > remain-1) return NULL;
     for (i=0;i<nb_blocks;i++) {
       int pos = *idx++;
-      if (pos+3 >= nb_in || (pos&0x3)) return NULL;
+      if (pos < 0 || nb_in < 4 || pos > nb_in-4 || (pos&0x3)) return NULL;
     }
     nb_out -= 8;
     remain -= nb_blocks+1;
+    if (nb_blocks > INT_MAX / SPARSE_BLOCK_SIZE / (int)sizeof(float) - *total_blocks) return NULL;
     *total_blocks += nb_blocks;
   }
   if (nb_out != 0) return NULL;

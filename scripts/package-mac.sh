@@ -5,8 +5,9 @@ project_root="${0:A:h:h}"
 architecture="${CLEARTONE_TARGET_ARCH:-$(uname -m)}"
 [[ "$architecture" == "x86_64" ]] && architecture="x64"
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$project_root/apps/macos/native/swift-engine/Resources/Info.plist")"
-dmg_path="$project_root/dist/ClearTone-$version-mac-$architecture.dmg"
-staging="$(mktemp -d /tmp/cleartone-dmg.XXXXXX)"
+pkg_path="$project_root/dist/ClearTone-$version-mac-$architecture.pkg"
+workspace="$(mktemp -d /tmp/cleartone-pkg.XXXXXX)"
+package_root="$workspace/package-root"
 temporary_keychain=""
 original_keychains=()
 
@@ -17,18 +18,18 @@ cleanup() {
     fi
     security delete-keychain "$temporary_keychain" 2>/dev/null || true
   fi
-  rm -rf "$staging"
+  rm -rf "$workspace"
 }
 trap cleanup EXIT
 
 certificate="$project_root/_dev-id-apple.p12"
 if [[ -z "${CLEARTONE_APP_SIGN_IDENTITY:-}" && -f "$certificate" ]]; then
-  certificate_password="${CLEARTONE_MAC_CERTIFICATE_PASSWORD:-${CSC_KEY_PASSWORD:-}}"
+  certificate_password="${CLEARTONE_MAC_CERTIFICATE_PASSWORD:-${MACOS_CERTIFICATE_PASSWORD:-${CSC_KEY_PASSWORD:-}}}"
   if [[ -z "$certificate_password" ]]; then
     read -s "certificate_password?Certificate password: "
     echo
   fi
-  temporary_keychain="$staging/cleartone-signing.keychain-db"
+  temporary_keychain="$workspace/cleartone-signing.keychain-db"
   keychain_password="$(uuidgen)"
   while IFS= read -r existing_keychain; do
     existing_keychain="${existing_keychain//\"/}"
@@ -37,6 +38,7 @@ if [[ -z "${CLEARTONE_APP_SIGN_IDENTITY:-}" && -f "$certificate" ]]; then
   done < <(security list-keychains -d user)
   security create-keychain -p "$keychain_password" "$temporary_keychain"
   security unlock-keychain -p "$keychain_password" "$temporary_keychain"
+  security list-keychains -d user -s "$temporary_keychain" "${original_keychains[@]}"
   security set-keychain-settings -lut 21600 "$temporary_keychain"
   security import "$certificate" -k "$temporary_keychain" -P "$certificate_password" -T /usr/bin/codesign
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$temporary_keychain" >/dev/null
@@ -66,15 +68,41 @@ if [[ "${CLEARTONE_REQUIRE_DEVELOPER_ID:-0}" == "1" && "${CLEARTONE_APP_SIGN_IDE
   exit 1
 fi
 
+if [[ "${CLEARTONE_REQUIRE_DEVELOPER_ID:-0}" == "1" && "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" != "Developer ID Installer:"* ]]; then
+  echo "A Developer ID Installer identity is required for a signed macOS release." >&2
+  exit 1
+fi
+
 "$project_root/scripts/build-driver.sh"
 "$project_root/scripts/build-app.sh"
-cp -R "$project_root/dist/ClearTone.app" "$staging/ClearTone.app"
-ln -s /Applications "$staging/Applications"
-rm -f "$dmg_path"
-hdiutil create -volname ClearTone -srcfolder "$staging" -ov -format UDZO "$dmg_path"
+mkdir -p "$package_root/Applications"
+COPYFILE_DISABLE=1 cp -R "$project_root/dist/ClearTone.app" "$package_root/Applications/ClearTone.app"
+rm -f "$pkg_path"
+# Prevent Installer from relocating/upgrading a different copy of ClearTone.
+pkgbuild --analyze --root "$package_root" "$workspace/components.plist"
+/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$workspace/components.plist"
+/usr/libexec/PlistBuddy -c 'Set :0:BundleHasStrictIdentifier true' "$workspace/components.plist"
+
+package_arguments=(
+  --root "$package_root"
+  --component-plist "$workspace/components.plist"
+  --identifier com.typocreative.cleartone.installer
+  --version "$version"
+  --install-location /
+  --scripts "$project_root/scripts/macos-pkg-scripts"
+)
+if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then
+  package_arguments+=(--sign "$CLEARTONE_INSTALLER_SIGN_IDENTITY")
+fi
+pkgbuild "${package_arguments[@]}" "$pkg_path"
+
+pkgutil --payload-files "$pkg_path" | grep -q '^\./Applications/ClearTone.app/Contents/MacOS/ClearTone$'
+if [[ -n "${CLEARTONE_INSTALLER_SIGN_IDENTITY:-}" ]]; then
+  pkgutil --check-signature "$pkg_path"
+else
+  echo "Installer package is unsigned. Add a Developer ID Installer identity for public distribution."
+fi
 if [[ -n "${CLEARTONE_APP_SIGN_IDENTITY:-}" && "$CLEARTONE_APP_SIGN_IDENTITY" != "-" ]]; then
-  codesign --force --timestamp --sign "$CLEARTONE_APP_SIGN_IDENTITY" "$dmg_path"
-  codesign --verify --strict --verbose=2 "$dmg_path"
   codesign --verify --deep --strict --verbose=2 "$project_root/dist/ClearTone.app"
 fi
-echo "Built $dmg_path"
+echo "Built $pkg_path"

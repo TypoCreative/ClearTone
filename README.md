@@ -93,7 +93,7 @@ ClearTone/
 │   └── windows/
 │       ├── native/                         # Win32/WASAPI/CMake application
 │       └── scripts/                        # PowerShell build and checks
-├── scripts/                                # macOS build, driver, test, DMG
+├── scripts/                                # macOS build, driver, test, PKG
 ├── docs/                                   # Current plan and research history
 └── .github/workflows/                      # macOS and Windows quality/releases
 ```
@@ -111,6 +111,7 @@ scripts/check.sh
 scripts/build-app.sh
 scripts/build-driver.sh
 scripts/package-mac.sh
+scripts/clear-quarantine.sh
 ```
 
 Local app builds are ad-hoc signed. Public macOS releases require a Developer ID
@@ -142,12 +143,18 @@ npm run build
 ```
 
 On macOS, place `_dev-id-apple.p12` in the project root and run the command. Set
-`MACOS_CERTIFICATE_PASSWORD` or enter its password through the interactive hidden
+`CLEARTONE_MAC_CERTIFICATE_PASSWORD` (or `MACOS_CERTIFICATE_PASSWORD` /
+`CSC_KEY_PASSWORD`) or enter its password through the interactive hidden
 prompt. Local and GitHub builds accept Apple Development or Developer ID Application
 with its private key. The current P12 contains Apple Development, so its artifacts
 are intended for internal testing; public Gatekeeper/notarized distribution still
 requires Developer ID Application. Internally, the macOS branch runs
-`npm run dist:mac`, so local and CI use the same packaging sequence.
+`npm run dist:mac`, so local and CI use the same packaging sequence. The output is
+`dist/ClearTone-0.3.0-mac-<arch>.pkg`; installation places ClearTone in
+`/Applications` and its post-install script verifies the installed ClearTone bundle and removes only
+its quarantine attribute on the selected target volume. Cleanup errors fail the
+installation instead of silently reporting success. Bundle relocation is disabled.
+The same cleanup can be run manually with `scripts/clear-quarantine.sh`.
 
 On Windows, provide `WINDOWS_CERTIFICATE_PFX` as a file path or base64 value and
 optionally `WINDOWS_CERTIFICATE_PASSWORD`. The script uses `signtool.exe`, SHA-256,
@@ -160,8 +167,9 @@ as base64 repository secrets.
 
 ## Distribution status
 
-- macOS DMG workflow: arm64 and x64, signed with the identity contained in
-  `_dev-id-apple.p12`; the current Apple Development identity is internal-only.
+- macOS PKG workflow: arm64 and x64. The app is signed with the identity contained
+  in `_dev-id-apple.p12`; the current Apple Development identity is internal-only.
+  A public trusted PKG additionally requires a Developer ID Installer identity.
 - Windows ZIP workflow: signed and timestamped x64 portable artifact.
 - Quality CI may still produce temporary unsigned binaries for compilation tests.
 - Published Windows ZIPs are uploaded directly as GitHub Release assets, avoiding
@@ -172,3 +180,24 @@ as base64 repository secrets.
 ## License
 
 MIT
+
+## Dependency and security checks
+
+There are no npm or remote SwiftPM packages to upgrade. RNNoise is vendored C,
+shared by macOS and Windows; upstream tracking and local patches are recorded in
+`docs/SECURITY.md`. GitHub Actions dependencies are pinned to verified commit IDs.
+
+`npm run check` runs Swift tests, RNNoise security regression checks with AddressSanitizer
+and UndefinedBehaviorSanitizer, and a release app build. `npm audit --audit-level=low`
+is enforced in quality CI. Windows CTest also runs the RNNoise regression checks.
+
+For a local PKG without a signing certificate:
+
+```bash
+CLEARTONE_APP_SIGN_IDENTITY=- CLEARTONE_DRIVER_SIGN_IDENTITY=- npm run dist:mac
+```
+
+This produces an ad-hoc signed app inside an unsigned installer for local testing.
+Quarantine cleanup after installation does not notarize the installer or bypass
+Gatekeeper's initial check of a downloaded PKG. Public distribution requires Developer ID
+Application, Developer ID Installer, and Apple notarization.

@@ -1,0 +1,11 @@
+#!/bin/zsh
+set -euo pipefail
+target_volume="${3:-/}"
+[[ "$target_volume" == /* && -d "$target_volume" ]] || exit 1
+# Do not let a pre-existing symlink redirect a privileged installation.
+for directory in "${target_volume%/}/Applications" "${target_volume%/}/Applications/ClearTone.app"; do
+  if [[ -L "$directory" ]]; then
+    echo "ClearTone cannot install through a symbolic link: $directory" >&2
+    exit 1
+  fi
+done

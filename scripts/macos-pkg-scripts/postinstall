@@ -1,0 +1,18 @@
+#!/bin/zsh
+set -euo pipefail
+
+# Installer supplies the destination volume as argument 3. Never touch the
+# running system when the user selected another volume.
+target_volume="${3:-/}"
+[[ "$target_volume" == /* && -d "$target_volume" ]] || exit 1
+app_path="${target_volume%/}/Applications/ClearTone.app"
+if [[ -L "${target_volume%/}/Applications" || -L "$app_path" || ! -d "$app_path" ]]; then
+  echo "ClearTone installation path is missing or is a symbolic link." >&2
+  exit 1
+fi
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist")"
+[[ "$bundle_id" == com.typocreative.cleartone ]] || exit 1
+/usr/bin/codesign --verify --deep --strict "$app_path"
+# Remove only quarantine, preserving all other attributes and system policy.
+/usr/bin/xattr -dr com.apple.quarantine "$app_path"
+echo "ClearTone installed; quarantine cleanup completed."

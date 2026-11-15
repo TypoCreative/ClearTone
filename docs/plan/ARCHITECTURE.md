@@ -13,7 +13,7 @@ process and share the vendored RNNoise C source and 48 kHz/480-sample frame mode
 | `apps/macos/web` | Historical landing-page prototype; not shipped in the desktop app. |
 | `apps/windows/native` | Win32 UI, tray lifecycle, WASAPI engine, CMake project, and resources. |
 | `apps/windows/scripts` | PowerShell build, Authenticode signing, packaging, and validation. |
-| `scripts` | macOS app, driver, tests, and DMG automation. |
+| `scripts` | macOS app, driver, tests, PKG, and quarantine cleanup automation. |
 
 ## macOS runtime
 
@@ -51,8 +51,9 @@ WDK driver would require Windows test mode and is not a normal end-user solution
 
 ## Distribution
 
-- macOS: SwiftPM/Xcode scripts produce app, driver package, and DMG; published
-  releases retain the existing Developer ID policy.
+- macOS: SwiftPM/Xcode scripts produce the app, embedded driver package, and a PKG
+  that installs to `/Applications`. Its post-install step removes the app quarantine
+  attribute; published releases retain the existing Developer ID policy.
 - Windows: Visual Studio 2022/CMake produces a portable x64 ZIP. Quality builds
   stay unsigned; release builds sign and timestamp the executable with Authenticode,
   then upload the ZIP directly to the GitHub Release without `upload-artifact`.

@@ -38,6 +38,7 @@
 #include "denoise.h"
 #include <math.h>
 #include "rnnoise.h"
+#include <limits.h>
 #include "pitch.h"
 #include "arch.h"
 #include "rnn.h"
@@ -234,8 +235,9 @@ struct RNNModel {
 
 RNNModel *rnnoise_model_from_buffer(const void *ptr, int len) {
   RNNModel *model;
-  model = malloc(sizeof(*model));
-  model->blob = NULL;
+  if (ptr == NULL || len <= 0) return NULL;
+  model = calloc(1, sizeof(*model));
+  if (model == NULL) return NULL;
   model->const_blob = ptr;
   model->blob_len = len;
   return model;
@@ -243,25 +245,27 @@ RNNModel *rnnoise_model_from_buffer(const void *ptr, int len) {
 
 RNNModel *rnnoise_model_from_filename(const char *filename) {
   RNNModel *model;
-  FILE *f = fopen(filename, "rb");
+  FILE *f;
+  if (filename == NULL) return NULL;
+  f = fopen(filename, "rb");
+  if (f == NULL) return NULL;
   model = rnnoise_model_from_file(f);
+  if (model == NULL) { fclose(f); return NULL; }
   model->file = f;
   return model;
 }
 
 RNNModel *rnnoise_model_from_file(FILE *f) {
   RNNModel *model;
-  model = malloc(sizeof(*model));
-  model->file = NULL;
-
-  fseek(f, 0, SEEK_END);
-  model->blob_len = ftell(f);
-  fseek(f, 0, SEEK_SET);
-
-  model->const_blob = NULL;
+  long length;
+  if (f == NULL || fseek(f, 0, SEEK_END) != 0) return NULL;
+  length = ftell(f);
+  if (length <= 0 || length > INT_MAX || fseek(f, 0, SEEK_SET) != 0) return NULL;
+  model = calloc(1, sizeof(*model));
+  if (model == NULL) return NULL;
+  model->blob_len = (int)length;
   model->blob = malloc(model->blob_len);
-  if (fread(model->blob, model->blob_len, 1, f) != 1)
-  {
+  if (model->blob == NULL || fread(model->blob, 1, model->blob_len, f) != (size_t)model->blob_len) {
     rnnoise_model_free(model);
     return NULL;
   }
@@ -269,6 +273,7 @@ RNNModel *rnnoise_model_from_file(FILE *f) {
 }
 
 void rnnoise_model_free(RNNModel *model) {
+  if (model == NULL) return;
   if (model->file != NULL) fclose(model->file);
   if (model->blob != NULL) free(model->blob);
   free(model);
@@ -283,6 +288,7 @@ int rnnoise_get_frame_size(void) {
 }
 
 int rnnoise_init(DenoiseState *st, RNNModel *model) {
+  if (st == NULL) return -1;
   memset(st, 0, sizeof(*st));
 #if !TRAINING
   if (model != NULL) {
@@ -312,6 +318,7 @@ DenoiseState *rnnoise_create(RNNModel *model) {
   int ret;
   DenoiseState *st;
   st = malloc(rnnoise_get_size());
+  if (st == NULL) return NULL;
   ret = rnnoise_init(st, model);
   if (ret != 0) {
     free(st);
