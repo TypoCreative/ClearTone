@@ -1,6 +1,6 @@
 import Foundation
 
-enum VoicePreset: String, Codable, CaseIterable {
+enum VoicePreset: String, Sendable, CaseIterable {
     case natural
     case clear
     case broadcast

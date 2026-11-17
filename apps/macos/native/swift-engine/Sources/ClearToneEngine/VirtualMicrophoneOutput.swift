@@ -37,11 +37,11 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
     private let outputFrameCapacity: AVAudioFrameCount = 480
     private var availableBuffers: [PooledAudioBuffer] = []
     private var queuedBuffers = 0
-    private var configuredDeviceID: AudioDeviceID?
     private var running = false
+    private var poolGeneration = 0
 
     func refreshState(enabled: Bool) -> VirtualMicrophoneState {
-        let device = findVirtualDevice()
+        let device = CoreAudioDevices.virtualMicrophone()
         return VirtualMicrophoneState(
             enabled: enabled,
             available: device != nil,
@@ -53,7 +53,7 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
 
     func start() throws {
         guard !running else { return }
-        guard let device = findVirtualDevice() else {
+        guard let device = CoreAudioDevices.virtualMicrophone() else {
             throw VirtualMicrophoneError.deviceUnavailable
         }
 
@@ -83,45 +83,41 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         try engine.start()
         player.play()
         prepareBufferPool()
-        configuredDeviceID = device.id
+        stateLock.lock()
         running = true
+        stateLock.unlock()
     }
 
     func stop() {
         guard running else { return }
+        stateLock.lock()
+        running = false
+        poolGeneration += 1
+        stateLock.unlock()
         player.stop()
         engine.stop()
         stateLock.lock()
         queuedBuffers = 0
         availableBuffers.removeAll(keepingCapacity: false)
         stateLock.unlock()
-        configuredDeviceID = nil
-        running = false
     }
 
     /// Returns queue depth in RNNoise-sized frames, or nil when the buffer is dropped.
     func enqueue(_ samples: [Float]) -> Int? {
-        guard running, !samples.isEmpty else { return 0 }
+        guard !samples.isEmpty else { return 0 }
 
-        guard let pooledBuffer = acquireBuffer(frameCount: AVAudioFrameCount(samples.count)),
-              let destination = pooledBuffer.pcm.floatChannelData?[0] else {
+        guard let lease = acquireBuffer(frameCount: AVAudioFrameCount(samples.count)),
+              let destination = lease.buffer.pcm.floatChannelData?[0] else {
             return nil
         }
 
-        let buffer = pooledBuffer.pcm
+        let buffer = lease.buffer.pcm
         buffer.frameLength = AVAudioFrameCount(samples.count)
         destination.update(from: samples, count: samples.count)
-        let queueDepth = currentQueueDepth
-        player.scheduleBuffer(buffer) { [weak self, pooledBuffer] in
-            self?.releaseBuffer(pooledBuffer)
+        player.scheduleBuffer(buffer) { [weak self] in
+            self?.releaseBuffer(lease.buffer, generation: lease.generation)
         }
-        return queueDepth
-    }
-
-    var currentQueueDepth: Int {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return queuedBuffers
+        return lease.queueDepth
     }
 
     private func prepareBufferPool() {
@@ -140,7 +136,7 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         stateLock.unlock()
     }
 
-    private func acquireBuffer(frameCount: AVAudioFrameCount) -> PooledAudioBuffer? {
+    private func acquireBuffer(frameCount: AVAudioFrameCount) -> (buffer: PooledAudioBuffer, queueDepth: Int, generation: Int)? {
         stateLock.lock()
         defer { stateLock.unlock() }
         guard running, queuedBuffers < maximumQueuedBuffers else { return nil }
@@ -151,87 +147,26 @@ final class VirtualMicrophoneOutput: @unchecked Sendable {
         } else {
             buffer = PooledAudioBuffer(format: format, frameCapacity: frameCount)
         }
-        guard buffer != nil else { return nil }
+        guard let buffer else { return nil }
         queuedBuffers += 1
-        return buffer
+        return (buffer, queuedBuffers, poolGeneration)
     }
 
-    private func releaseBuffer(_ buffer: PooledAudioBuffer) {
+    private func releaseBuffer(_ buffer: PooledAudioBuffer, generation: Int) {
         stateLock.lock()
+        defer { stateLock.unlock() }
+        guard generation == poolGeneration else { return }
         queuedBuffers = max(0, queuedBuffers - 1)
         buffer.pcm.frameLength = 0
         if running && availableBuffers.count < maximumQueuedBuffers {
             availableBuffers.append(buffer)
         }
-        stateLock.unlock()
     }
 
     private func statusMessage(enabled: Bool, available: Bool) -> String {
         if !available { return "ClearTone Virtual Microphone driver is not installed" }
         if !enabled { return "Ready" }
         return "Routing cleaned audio to ClearTone Virtual Microphone"
-    }
-
-    private func findVirtualDevice() -> (id: AudioDeviceID, uid: String)? {
-        audioDeviceIDs().compactMap { id -> (AudioDeviceID, String)? in
-            guard let uid = stringProperty(
-                objectID: id,
-                selector: kAudioDevicePropertyDeviceUID
-            ) else { return nil }
-            let name = stringProperty(
-                objectID: id,
-                selector: kAudioObjectPropertyName
-            )
-            guard uid == Self.deviceUID || name == Self.deviceName else { return nil }
-            return (id, uid)
-        }.first
-    }
-
-    private func audioDeviceIDs() -> [AudioDeviceID] {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDevices,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            0,
-            nil,
-            &size
-        ) == noErr else { return [] }
-
-        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
-        var devices = [AudioDeviceID](repeating: 0, count: count)
-        guard AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            0,
-            nil,
-            &size,
-            &devices
-        ) == noErr else { return [] }
-        return devices
-    }
-
-    private func stringProperty(objectID: AudioObjectID, selector: AudioObjectPropertySelector) -> String? {
-        var address = AudioObjectPropertyAddress(
-            mSelector: selector,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var value: Unmanaged<CFString>?
-        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
-        guard AudioObjectGetPropertyData(
-            objectID,
-            &address,
-            0,
-            nil,
-            &size,
-            &value
-        ) == noErr else { return nil }
-        return value?.takeUnretainedValue() as String?
     }
 }
 

@@ -1,10 +1,10 @@
-# ClearTone — Native Voice Clarity for macOS and Windows
+# ClearTone — Native Voice Clarity for macOS
 
 ClearTone is a lightweight, local microphone-enhancement app. It reduces
 background noise and improves voice clarity without Electron, cloud processing,
 accounts, or audio uploads.
 
-Current version: **0.3.1** (macOS build 5)
+Current version: **0.3.2** (macOS build 6)
 
 ## How to install
 
@@ -13,7 +13,7 @@ choose **arm64** for Apple silicon (M1/M2/M3/M4 or newer) or **x64** for Intel.
 This build is **not notarized by Apple**, so macOS may require manual approval.
 Only approve a ClearTone download you trust from this repository.
 
-1. Open `ClearTone-0.3.1-mac-<arch>.dmg`.
+1. Open `ClearTone-0.3.2-mac-<arch>.dmg`.
 2. Drag **ClearTone.app** to **Applications**.
 3. Eject the DMG, then open **ClearTone** from Applications.
 4. If macOS blocks it, use either method below.
@@ -53,8 +53,8 @@ If you cannot open the DMG at all, remove quarantine from that exact download
 first, then open it. Example for Apple silicon in the default Downloads folder:
 
 ```bash
-xattr -d com.apple.quarantine "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
-open "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
+xattr -d com.apple.quarantine "$HOME/Downloads/ClearTone-0.3.2-mac-arm64.dmg"
+open "$HOME/Downloads/ClearTone-0.3.2-mac-arm64.dmg"
 ```
 
 Use `mac-x64.dmg` for Intel and adjust the path if your download is elsewhere.
@@ -69,71 +69,64 @@ Privacy & Security, or use Option B on the installed app and retry Install Drive
 Restart or log out if ClearTone asks, then select **ClearTone Virtual Microphone**
 in your meeting or recording app.
 
-## What it does
+## Supported Mac laptops
 
-ClearTone captures microphone audio, converts it to 48 kHz mono, processes every
-480-sample/10 ms frame with RNNoise, and sends the cleaned signal to a platform
-audio output. Processing stays on the device.
+ClearTone requires **macOS 13 Ventura or newer** and the matching native build.
+Compatibility below follows the deployment target and [Apple’s Ventura model list](https://support.apple.com/en-us/102861).
+It describes software compatibility, not a performance certification on every model.
 
-- **macOS:** AVAudioEngine/Core Audio → native voice finishing → ClearTone Core
-  Audio HAL virtual microphone.
-- **Windows:** WASAPI default communications input → RNNoise → selected playback
-  endpoint. Select an installed virtual audio cable as that endpoint when another
-  app must receive the result as a microphone.
+| Mac laptop | Download | Support |
+| --- | --- | --- |
+| MacBook Air with Apple silicon, including M1 (2020) | arm64 | Supported; M1 Air is the baseline optimization target |
+| MacBook Pro with Apple silicon | arm64 | Supported |
+| Intel MacBook Air (2018–2020) | x64 | Supported with macOS 13+; performance varies |
+| Intel MacBook Pro (2017–2020) | x64 | Supported with macOS 13+; performance varies |
+| MacBook 12-inch (2017) | x64 | Meets OS requirement; sustained performance not measured |
+| Earlier Intel laptops / macOS 12 or older | — | Unsupported |
 
-Local Windows quality builds remain unsigned. Release builds support Authenticode
-application signing, but include no Windows kernel driver or Microsoft
-driver-signing setup.
+M1 Air with 8 GB RAM is an intended configuration. CPU, memory, battery use and
+thermal behavior still need measurement on an actual M1 Air during a long call.
+Use the arm64 build on Apple silicon and menu-bar-only mode to release the main
+window’s rendering surface. No reduced-quality audio mode is required.
 
 ## Features
 
-| Capability | macOS | Windows |
+| Feature | Apple silicon Mac | Intel Mac |
 | --- | --- | --- |
-| Native single-process desktop UI | SwiftUI/AppKit | Win32 with Windows 11 Mica fallback |
-| Local RNNoise processing | Yes, 10 ms frames | Yes, 10 ms frames |
-| Voice finishing profiles | Natural, Clear, Broadcast | Planned after listening parity tests |
-| Processing strength | 0–100% | 0–100% |
-| Output selection | Automatic HAL route | Native playback-device picker |
-| System tray/menu bar | Yes | Yes |
-| Live input/output/voice metrics | Yes | Yes |
-| Compact CPU/memory metrics | Yes | Yes |
-| Built-in virtual microphone | Core Audio HAL plug-in | No; use an installed virtual cable |
-| Automatic default-input switching | Yes | Not applicable without a Windows virtual driver |
-| Account or cloud audio service | No | No |
+| Native SwiftUI app and menu bar | Yes | Yes |
+| Offline RNNoise, 48 kHz mono, 10 ms frames | Yes | Yes |
+| Natural / Clear / Broadcast voice profiles | Yes | Yes |
+| Adjustable processing strength | Yes | Yes |
+| Built-in and external microphone selection | Yes | Yes |
+| Follow system microphone and reconnect on device changes | Yes | Yes |
+| ClearTone Virtual Microphone | Yes, bundled driver installation required | Yes, bundled driver installation required |
+| Automatic default-input routing | Yes, when virtual microphone is enabled | Yes, when virtual microphone is enabled |
+| Input/output, reduction and latency metrics | Yes | Yes |
+| CPU and memory metrics | Yes | Yes |
+| Menu-bar-only mode | Yes | Yes |
+| Account, audio upload or cloud processing required | No | No |
+| Apple notarization in current release | No; manual approval may be needed | No; manual approval may be needed |
 
-## Architecture
+## What it does
 
-```text
-                              ClearTone 0.3.1
-                                     │
-                 ┌───────────────────┴───────────────────┐
-                 │                                       │
-       apps/macos/native                       apps/windows/native
-                 │                                       │
-        SwiftUI + AppKit                           Win32 + tray
-                 │                                       │
-   AVAudioEngine + Core Audio                    WASAPI shared mode
-                 │                                       │
-                 └──────────── RNNoise C ────────────────┘
-                                 48 kHz mono
-                 │                                       │
-       Swift voice finishing                    strength blend
-                 │                                       │
-      Core Audio HAL virtual mic              playback/virtual cable
-```
+AVAudioEngine captures microphone audio and converts it to 48 kHz mono when
+needed. Every 480-sample frame passes through RNNoise and native voice finishing,
+then goes to the Core Audio HAL virtual microphone when enabled. Audio stays on
+the device. Model, sample rate, finishing profiles and processing strength remain
+the same across supported Macs.
 
-Both applications are native and keep the real-time pipeline in one process. The
-Windows CMake target reuses the same vendored RNNoise source as macOS, avoiding a
-second model copy and keeping suppression behavior aligned.
+The processing queue has a bounded buffer pool and reuses sample storage. RNNoise
+state is allocated on Start and released after a short idle delay. UI audio metrics
+update once per second and process CPU/memory metrics every ten seconds.
+See [performance measurements and validation limits](docs/PERFORMANCE.md).
 
-## Benefits
+If startup is waiting for microphone access or reconnecting, use **Cancel Starting**
+and retry. Allow microphone access in System Settings and select an available
+physical microphone. macOS audio configuration changes that stop capture trigger
+a restart while processing is active.
 
-- Low idle overhead and no browser/helper-process tree.
-- Private, offline audio processing.
-- Predictable 10 ms RNNoise frame size on both platforms.
-- Native tray/menu-bar lifecycle and platform accessibility controls.
-- Separate platform build scripts and CI jobs, so a Windows change does not alter
-  the macOS release artifact.
+Windows sources remain for reference/local builds; GitHub Actions no longer
+builds, verifies or publishes Windows artifacts.
 
 ## Use cases
 
@@ -141,6 +134,9 @@ second model copy and keeping suppression behavior aligned.
 - Streaming, gaming, and voice chat.
 - Podcast, voice-over, demo, and screen-recording workflows.
 - Teaching and support calls where clearer speech improves accessibility.
+
+See [native code architecture](docs/ARCHITECTURE.md) for component responsibilities
+and audio queue ownership.
 
 ## Project structure
 
@@ -158,7 +154,7 @@ ClearTone/
 │       └── scripts/                        # PowerShell build and checks
 ├── scripts/                                # macOS build, driver, test, DMG
 ├── docs/                                   # Current plan and research history
-└── .github/workflows/                      # macOS and Windows quality/releases
+└── .github/workflows/                      # macOS quality/releases
 ```
 
 The existing ClearTone icon/logo is preserved. The Windows `.ico` is generated
@@ -192,14 +188,9 @@ Desktop development with C++, CMake, and a Windows SDK.
 
 Output: `dist/windows/ClearTone/ClearTone.exe`.
 
-The GitHub Windows workflow produces
-`ClearTone-0.3.1-windows-x64-signed.zip`. It signs and timestamps `ClearTone.exe`
-with Authenticode, then verifies the signature before packaging. It does not sign
-or install a virtual-microphone driver.
+## Signed local build
 
-## One build command for both platforms
-
-Run the same command on either supported operating system:
+Run the local signing wrapper:
 
 ```bash
 npm run build
@@ -211,7 +202,7 @@ installed Keychain identity selected by `CLEARTONE_APP_SIGN_IDENTITY`. Set
 `CSC_KEY_PASSWORD`), or enter the P12 password at the hidden prompt.
 
 Apple Development signing is supported for the current manual-install builds.
-Output: `dist/ClearTone-0.3.1-mac-<arch>.dmg`, containing ClearTone.app, an
+Output: `dist/ClearTone-0.3.2-mac-<arch>.dmg`, containing ClearTone.app, an
 Applications shortcut and `HOW_TO_INSTALL.md`. There is no top-level PKG or
 automatic quarantine cleanup. The virtual microphone driver retains its bundled
 PKG, installed from the app's **Install Driver** action.
@@ -223,7 +214,7 @@ passed through the process environment and never written into artifacts or sourc
 
 GitHub Actions uses `MAC_CSC_LINK` / `MAC_CSC_KEY_PASSWORD` (with legacy
 `CSC_LINK` / `CSC_KEY_PASSWORD` fallbacks) for the base64 signing P12 and password.
-Windows uses `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`.
+Windows signing variables are only used by local Windows scripts.
 
 ## Distribution status
 
@@ -231,12 +222,8 @@ Windows uses `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`.
   The current app is signed with Apple Development and is not notarized.
 - v0.3.0 PKGs are superseded by v0.3.1 DMGs. Switching to DMG does not remove
   Gatekeeper warnings; use the scoped allow steps in **How to install** above.
-- Windows ZIP workflow: signed and timestamped x64 portable artifact.
-- Quality CI may still produce temporary unsigned binaries for compilation tests.
-- Published Windows ZIPs are uploaded directly as GitHub Release assets, avoiding
-  the separate GitHub Actions artifact-storage quota.
-- Windows virtual microphone: not bundled. A production first-party endpoint
-  remains a separate WDK and Microsoft-signing project.
+- Windows CI and release builds are disabled. Existing historical release assets
+  are not deleted by this change.
 
 ## License
 

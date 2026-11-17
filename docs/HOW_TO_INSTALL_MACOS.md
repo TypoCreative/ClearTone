@@ -5,7 +5,7 @@ choose **arm64** for Apple silicon (M1/M2/M3/M4 or newer) or **x64** for Intel.
 This build is **not notarized by Apple**, so macOS may require manual approval.
 Only approve a ClearTone download you trust from this repository.
 
-1. Open `ClearTone-0.3.1-mac-<arch>.dmg`.
+1. Open `ClearTone-0.3.2-mac-<arch>.dmg`.
 2. Drag **ClearTone.app** to **Applications**.
 3. Eject the DMG, then open **ClearTone** from Applications.
 4. If macOS blocks it, use either method below.
@@ -45,8 +45,8 @@ If you cannot open the DMG at all, remove quarantine from that exact download
 first, then open it. Example for Apple silicon in the default Downloads folder:
 
 ```bash
-xattr -d com.apple.quarantine "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
-open "$HOME/Downloads/ClearTone-0.3.1-mac-arm64.dmg"
+xattr -d com.apple.quarantine "$HOME/Downloads/ClearTone-0.3.2-mac-arm64.dmg"
+open "$HOME/Downloads/ClearTone-0.3.2-mac-arm64.dmg"
 ```
 
 Use `mac-x64.dmg` for Intel and adjust the path if your download is elsewhere.

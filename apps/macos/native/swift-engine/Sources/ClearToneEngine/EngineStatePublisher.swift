@@ -3,24 +3,24 @@ import Foundation
 
 // MARK: - Data Models
 
-struct AudioInputDevice: Codable {
+struct AudioInputDevice: Sendable {
     let id: String
     let name: String
     let manufacturer: String
     let isDefault: Bool
 }
 
-struct EngineMetrics: Codable {
-    var framesProcessed: Int
-    var inputRms: Double
-    var outputRms: Double
-    var noiseReductionPercent: Double
-    var estimatedLatencyMs: Double
-    var droppedFrames: Int
-    var outputQueueFrames: Int
+struct EngineMetrics: Sendable {
+    var framesProcessed: Int = 0
+    var inputRms: Double = 0
+    var outputRms: Double = 0
+    var noiseReductionPercent: Double = 0
+    var estimatedLatencyMs: Double = 0
+    var droppedFrames: Int = 0
+    var outputQueueFrames: Int = 0
 }
 
-struct VirtualMicrophoneState: Codable {
+struct VirtualMicrophoneState: Sendable {
     var enabled: Bool
     var available: Bool
     var deviceId: String?
@@ -28,8 +28,16 @@ struct VirtualMicrophoneState: Codable {
     var statusMessage: String
 }
 
-struct EngineSnapshot: Codable {
-    var phase: String
+enum EnginePhase: String, Sendable {
+    case booting, idle, starting, processing, stopping, error
+
+    var isProcessing: Bool { self == .processing || self == .starting }
+}
+
+struct EngineSnapshot: Sendable {
+    static let processingMessage = "Processing microphone input through the native engine"
+
+    var phase: EnginePhase
     var permission: String
     var selectedInputId: String?
     var systemInputId: String?
@@ -43,34 +51,13 @@ struct EngineSnapshot: Codable {
     var virtualMicrophone: VirtualMicrophoneState
 }
 
-struct EngineCommand: Codable {
-    let type: String
-    let inputId: String?
-    let strength: Double?
-    let voicePreset: VoicePreset?
-    let enabled: Bool?
-    let requestId: String?
-}
-
-struct SnapshotEnvelope: Codable {
-    let type: String
-    let snapshot: EngineSnapshot
-}
-
-struct AcknowledgementEnvelope: Codable {
-    let type: String
-    let requestId: String
-    let ok: Bool
-    let error: String?
-}
-
 // MARK: - State Publisher
 
 final class EngineStatePublisher: @unchecked Sendable {
     var onSnapshot: ((EngineSnapshot) -> Void)?
 
     var snapshot = EngineSnapshot(
-        phase: "booting",
+        phase: .booting,
         permission: "unknown",
         selectedInputId: nil,
         systemInputId: nil,
@@ -80,15 +67,7 @@ final class EngineStatePublisher: @unchecked Sendable {
         voicePreset: .clear,
         statusMessage: "Starting native engine",
         lastError: nil,
-        metrics: EngineMetrics(
-            framesProcessed: 0,
-            inputRms: 0,
-            outputRms: 0,
-            noiseReductionPercent: 0,
-            estimatedLatencyMs: 0,
-            droppedFrames: 0,
-            outputQueueFrames: 0
-        ),
+        metrics: EngineMetrics(),
         virtualMicrophone: VirtualMicrophoneState(
             enabled: false,
             available: false,
@@ -128,12 +107,14 @@ final class EngineStatePublisher: @unchecked Sendable {
         }
     }
 
-    func emitSnapshot() {
-        onSnapshot?(snapshot)
+    func transition(to phase: EnginePhase, message: String, error: String? = nil) {
+        snapshot.phase = phase
+        snapshot.statusMessage = message
+        snapshot.lastError = error
+        emitSnapshot()
     }
 
-    func emitAcknowledgement(requestId: String?, ok: Bool, error: String? = nil) {
-        // Native UI and engine now share one process. The acknowledgement
-        // shape remains for command compatibility, but no stdout bridge is needed.
+    func emitSnapshot() {
+        onSnapshot?(snapshot)
     }
 }

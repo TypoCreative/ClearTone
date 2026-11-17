@@ -17,7 +17,7 @@ accepts `MACOS_CERTIFICATE_PASSWORD` or `CSC_KEY_PASSWORD`).
 CLEARTONE_APP_SIGN_IDENTITY=- CLEARTONE_DRIVER_SIGN_IDENTITY=- npm run dist:mac
 ```
 
-Output: `dist/ClearTone-0.3.1-mac-<arch>.dmg`. It contains only ClearTone.app,
+Output: `dist/ClearTone-0.3.2-mac-<arch>.dmg`. It contains only ClearTone.app,
 an Applications shortcut and HOW_TO_INSTALL.md. Temporary signing keychains are
 stored outside the image staging folder and removed after the build.
 

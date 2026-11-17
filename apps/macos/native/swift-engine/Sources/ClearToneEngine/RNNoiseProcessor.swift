@@ -5,18 +5,21 @@ import CRNNoise
 
 private final class AudioWorkBuffer: @unchecked Sendable {
     var samples: [Float]
+    var count = 0
 
     init(capacity: Int) {
         samples = [Float](repeating: 0, count: capacity)
     }
 
     func prepare(count: Int) {
-        guard samples.count != count else { return }
-        samples = [Float](repeating: 0, count: count)
+        self.count = count
+        if samples.count < count {
+            samples = [Float](repeating: 0, count: count)
+        }
     }
 }
 
-final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
+final class RNNoiseProcessor: @unchecked Sendable {
     private let publisher: EngineStatePublisher
     private let virtualOutput: VirtualMicrophoneOutput
     private var state: OpaquePointer?
@@ -31,6 +34,8 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     private let workBufferLock = NSLock()
     private var availableWorkBuffers: [AudioWorkBuffer]
     private var cleanupGeneration = 0
+    // Main-thread counterpart prevents queued metrics from an older session.
+    private var metricsGeneration = 0
     private let memoryCleanupDelay: TimeInterval = 2
     private var isActive = false
     private var virtualMicrophoneEnabled = false
@@ -57,11 +62,11 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             AudioWorkBuffer(capacity: rnnoiseFrameSize)
         ]
         accumulator.reserveCapacity(rnnoiseFrameSize)
-
-        self.state = rnnoise_create(nil)
     }
 
     func start(strength: Double) {
+        metricsGeneration += 1
+        let configuration = publisher.snapshot
         let initialized = processingQueue.sync {
             cleanupGeneration += 1
             if state == nil {
@@ -75,32 +80,24 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             accumulatorCaptureTime = nil
             lastMetricsEmitNanoseconds = 0
             isActive = true
-            virtualMicrophoneEnabled = publisher.snapshot.virtualMicrophone.enabled
-            voiceEnhancement.setPreset(publisher.snapshot.voicePreset)
+            virtualMicrophoneEnabled = configuration.virtualMicrophone.enabled
+            voiceEnhancement.setPreset(configuration.voicePreset)
             voiceEnhancement.reset()
             return true
         }
 
         guard initialized else {
-            publisher.snapshot.phase = "error"
-            publisher.snapshot.lastError = "RNNoise could not allocate its processing state."
-            publisher.snapshot.statusMessage = "Noise reduction is unavailable"
-            publisher.emitSnapshot()
+            publisher.transition(
+                to: .error, message: "Noise reduction is unavailable",
+                error: "RNNoise could not allocate its processing state."
+            )
             return
         }
 
-        publisher.snapshot.phase = "processing"
-        publisher.snapshot.statusMessage = "Processing microphone input through the native engine"
+        publisher.snapshot.phase = .processing
+        publisher.snapshot.statusMessage = EngineSnapshot.processingMessage
         publisher.snapshot.lastError = nil
-        publisher.snapshot.metrics = EngineMetrics(
-            framesProcessed: 0,
-            inputRms: 0,
-            outputRms: 0,
-            noiseReductionPercent: 0,
-            estimatedLatencyMs: 0,
-            droppedFrames: 0,
-            outputQueueFrames: 0
-        )
+        publisher.snapshot.metrics = EngineMetrics()
         if publisher.snapshot.virtualMicrophone.enabled {
             do {
                 try virtualOutput.start()
@@ -117,6 +114,7 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     }
 
     func stop() {
+        metricsGeneration += 1
         let scheduledGeneration = processingQueue.sync {
             isActive = false
             accumulator.removeAll(keepingCapacity: true)
@@ -159,11 +157,11 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     func setVirtualMicrophone(enabled: Bool) throws {
         if enabled {
             try virtualOutput.start()
+            processingQueue.sync { virtualMicrophoneEnabled = true }
         } else {
+            // Drain in-flight enqueue calls before touching AVAudioPlayerNode.
+            processingQueue.sync { virtualMicrophoneEnabled = false }
             virtualOutput.stop()
-        }
-        processingQueue.sync {
-            virtualMicrophoneEnabled = enabled
         }
         publisher.snapshot.virtualMicrophone = virtualOutput.refreshState(enabled: enabled)
     }
@@ -173,10 +171,10 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             enabled: publisher.snapshot.virtualMicrophone.enabled
         )
         if refreshedState.enabled && !refreshedState.available {
-            virtualOutput.stop()
             processingQueue.sync {
                 virtualMicrophoneEnabled = false
             }
+            virtualOutput.stop()
             refreshedState.enabled = false
         }
         publisher.snapshot.virtualMicrophone = refreshedState
@@ -220,7 +218,7 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
 
             // Most devices already deliver exactly one 10 ms frame. Avoid the
             // accumulator and an additional copy for this common hot path.
-            if self.accumulator.isEmpty && samples.count == self.frameSize {
+            if self.accumulator.isEmpty && workBuffer.count == self.frameSize {
                 self.processSingleFrame(samples, capturedAtNanoseconds: capturedAtNanoseconds)
                 return
             }
@@ -228,7 +226,7 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             if self.accumulator.count == self.accumulatorReadIndex {
                 self.accumulatorCaptureTime = capturedAtNanoseconds
             }
-            self.accumulator.append(contentsOf: samples)
+            self.accumulator.append(contentsOf: samples.prefix(workBuffer.count))
 
             // The accumulator is queue-confined, so audio callbacks cannot race
             // cleanup or RNNoise processing.
@@ -271,13 +269,14 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
     private func trimAvailableWorkBuffers() {
         workBufferLock.lock()
         for buffer in availableWorkBuffers {
-            buffer.prepare(count: frameSize)
+            buffer.samples = [Float](repeating: 0, count: frameSize)
+            buffer.count = 0
         }
         workBufferLock.unlock()
     }
 
     private func processSingleFrame(_ input: [Float], capturedAtNanoseconds: UInt64) {
-        guard let st = state, input.count == frameSize else { return }
+        guard let st = state, input.count >= frameSize else { return }
         let measurementTime = DispatchTime.now().uptimeNanoseconds
         let shouldEmitMetrics = lastMetricsEmitNanoseconds == 0
             || (measurementTime >= lastMetricsEmitNanoseconds
@@ -287,7 +286,7 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         // normalized Float32 samples. Convert into the model domain, then back.
         var inputSumSquares = 0.0
         for index in 0..<frameSize {
-            let sample = input[index]
+            let sample = input[index].isFinite ? max(-1, min(1, input[index])) : 0
             modelInputBuffer[index] = sample * 32_768
             if shouldEmitMetrics {
                 inputSumSquares += Double(sample * sample)
@@ -306,7 +305,8 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         var denoisedSumSquares = 0.0
         for index in 0..<frameSize {
             let normalizedOutput = max(-1, min(1, outputBuffer[index] / 32_768))
-            let blendedOutput = input[index] * (1 - alpha) + normalizedOutput * alpha
+            let cleanInput = modelInputBuffer[index] / 32_768
+            let blendedOutput = cleanInput * (1 - alpha) + normalizedOutput * alpha
             outputBuffer[index] = blendedOutput
             if shouldEmitMetrics {
                 denoisedSumSquares += Double(blendedOutput * blendedOutput)
@@ -330,6 +330,12 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
         // Update metrics
         framesProcessed += 1
 
+        if outputDropped {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.publisher.snapshot.phase == .processing else { return }
+                self.publisher.snapshot.metrics.droppedFrames += 1
+            }
+        }
         guard shouldEmitMetrics else { return }
         lastMetricsEmitNanoseconds = measurementTime
 
@@ -349,18 +355,17 @@ final class RNNoiseProcessor: NoiseReductionProcessor, @unchecked Sendable {
             : 0
         let captureToProcessedMs = Double(elapsedNanoseconds) / 1_000_000
         let queuedAudioMs = Double(queueDepth * frameSize) / 48_000 * 1_000
+        let generation = cleanupGeneration
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self, self.metricsGeneration == generation,
+                  self.publisher.snapshot.phase == .processing else { return }
             self.publisher.snapshot.metrics.framesProcessed = processedSamples
             self.publisher.snapshot.metrics.inputRms = inputRMS
             self.publisher.snapshot.metrics.outputRms = enhancedRMS
             self.publisher.snapshot.metrics.noiseReductionPercent = reduction
             self.publisher.snapshot.metrics.estimatedLatencyMs = captureToProcessedMs + queuedAudioMs
             self.publisher.snapshot.metrics.outputQueueFrames = queueDepth
-            if outputDropped {
-                self.publisher.snapshot.metrics.droppedFrames += 1
-            }
-            self.publisher.snapshot.statusMessage = "Processing microphone input through the native engine"
+            self.publisher.snapshot.statusMessage = EngineSnapshot.processingMessage
             self.publisher.emitSnapshot()
         }
     }

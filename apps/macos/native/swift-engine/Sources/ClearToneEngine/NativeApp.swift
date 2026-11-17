@@ -1,210 +1,5 @@
 import AppKit
-import Darwin
 import SwiftUI
-
-@MainActor
-final class ClearToneAppModel: ObservableObject {
-    @Published private(set) var snapshot: EngineSnapshot
-    @Published private(set) var performance = NativePerformanceMetrics()
-    @Published var actionError: String?
-    @Published private(set) var trayOnlyMode: Bool
-
-    let runtime: EngineRuntime
-    private var metricsTimer: Timer?
-    private let sampler = NativePerformanceSampler()
-
-    var isProcessing: Bool { snapshot.phase == "processing" || snapshot.phase == "starting" }
-    var isProcessingTransitioning: Bool { snapshot.phase == "starting" || snapshot.phase == "stopping" }
-    var processingActionTitle: String {
-        switch snapshot.phase {
-        case "starting": "Starting…"
-        case "stopping": "Stopping…"
-        case "processing": "Stop Processing"
-        default: "Start Processing"
-        }
-    }
-    var processingActionIcon: String {
-        switch snapshot.phase {
-        case "starting", "stopping": "hourglass"
-        case "processing": "stop.fill"
-        default: "play.fill"
-        }
-    }
-
-    init() {
-        let runtime = EngineRuntime()
-        self.runtime = runtime
-        snapshot = runtime.publisher.snapshot
-        trayOnlyMode = UserDefaults.standard.bool(forKey: "trayOnlyMode")
-        runtime.publisher.onSnapshot = { [weak self] snapshot in
-            DispatchQueue.main.async {
-                self?.snapshot = snapshot
-            }
-        }
-        restoreSettings()
-        send(type: "listInputs")
-        ClearToneAppDelegate.terminationHandler = { [weak runtime] in
-            runtime?.prepareForTermination()
-        }
-        metricsTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.samplePerformance() }
-        }
-        samplePerformance()
-    }
-
-    func toggleProcessing() {
-        guard !isProcessingTransitioning else { return }
-        actionError = nil
-        send(type: isProcessing ? "stopProcessing" : "startProcessing")
-    }
-
-    func selectInput(_ id: String) {
-        if id == "system" {
-            send(type: "followSystemInput")
-            UserDefaults.standard.removeObject(forKey: "selectedInputId")
-        } else {
-            send(type: "selectInput", inputId: id)
-            UserDefaults.standard.set(id, forKey: "selectedInputId")
-        }
-    }
-
-    func setStrength(_ value: Double) {
-        let normalized = max(0, min(1, value))
-        send(type: "setStrength", strength: normalized)
-        UserDefaults.standard.set(normalized, forKey: "strength")
-    }
-
-    func setVoicePreset(_ preset: VoicePreset) {
-        send(type: "setVoicePreset", voicePreset: preset)
-        UserDefaults.standard.set(preset.rawValue, forKey: "voicePreset")
-    }
-
-    func setVirtualMicrophone(_ enabled: Bool) {
-        guard snapshot.virtualMicrophone.available || !enabled else {
-            actionError = "ClearTone Virtual Microphone driver is not installed."
-            return
-        }
-        send(type: "setVirtualMicrophone", enabled: enabled)
-        UserDefaults.standard.set(enabled, forKey: "virtualMicrophoneEnabled")
-    }
-
-    func installDriver() {
-        let candidates = [
-            Bundle.main.resourceURL?.appendingPathComponent("driver/ClearToneVirtualMicrophone.pkg"),
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("apps/resources/driver/ClearToneVirtualMicrophone.pkg")
-        ].compactMap { $0 }
-        guard let installer = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
-            actionError = "The virtual microphone installer is missing from this build."
-            return
-        }
-        NSWorkspace.shared.open(installer)
-    }
-
-    func refreshDevices() {
-        send(type: "listInputs")
-    }
-
-    func dismissError() {
-        actionError = nil
-        runtime.publisher.snapshot.lastError = nil
-        runtime.publisher.emitSnapshot()
-    }
-
-    func setTrayOnlyMode(_ enabled: Bool) {
-        trayOnlyMode = enabled
-        UserDefaults.standard.set(enabled, forKey: "trayOnlyMode")
-        ClearToneAppDelegate.applyPresentationMode(trayOnly: enabled)
-        if enabled {
-            // SwiftUI may update the Scene after this state mutation. Repeat
-            // close once on the next turn to catch that window as well.
-            DispatchQueue.main.async {
-                ClearToneAppDelegate.closeDesktopWindows()
-            }
-        }
-    }
-
-    func prepareForTermination() {
-        runtime.prepareForTermination()
-    }
-
-    private func restoreSettings() {
-        let defaults = UserDefaults.standard
-        let strength = defaults.object(forKey: "strength") as? Double ?? 0.65
-        let preset = VoicePreset(rawValue: defaults.string(forKey: "voicePreset") ?? "clear") ?? .clear
-        send(type: "setStrength", strength: strength)
-        send(type: "setVoicePreset", voicePreset: preset)
-        if let selectedInput = defaults.string(forKey: "selectedInputId") {
-            send(type: "selectInput", inputId: selectedInput)
-        } else {
-            send(type: "followSystemInput")
-        }
-        if defaults.bool(forKey: "virtualMicrophoneEnabled") {
-            send(type: "setVirtualMicrophone", enabled: true)
-        }
-    }
-
-    private func samplePerformance() {
-        performance = sampler.sample()
-    }
-
-    private func send(
-        type: String,
-        inputId: String? = nil,
-        strength: Double? = nil,
-        voicePreset: VoicePreset? = nil,
-        enabled: Bool? = nil
-    ) {
-        do {
-            let command = EngineCommand(
-                type: type,
-                inputId: inputId,
-                strength: strength,
-                voicePreset: voicePreset,
-                enabled: enabled,
-                requestId: nil
-            )
-            let data = try JSONEncoder().encode(command)
-            guard let line = String(data: data, encoding: .utf8) else { return }
-            runtime.commandHandler.handle(line: line)
-            snapshot = runtime.publisher.snapshot
-            if let error = snapshot.lastError { actionError = error }
-        } catch {
-            actionError = error.localizedDescription
-        }
-    }
-}
-
-struct NativePerformanceMetrics {
-    var cpuPercent = 0.0
-    var memoryMB = 0.0
-}
-
-final class NativePerformanceSampler {
-    private var previousCPUTime = 0.0
-    private var previousWallTime = ProcessInfo.processInfo.systemUptime
-
-    func sample() -> NativePerformanceMetrics {
-        var usage = rusage()
-        getrusage(RUSAGE_SELF, &usage)
-        let cpuTime = Double(usage.ru_utime.tv_sec) + Double(usage.ru_utime.tv_usec) / 1_000_000
-            + Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1_000_000
-        let wallTime = ProcessInfo.processInfo.systemUptime
-        let elapsed = max(0.001, wallTime - previousWallTime)
-        let cpu = previousCPUTime == 0 ? 0 : max(0, (cpuTime - previousCPUTime) / elapsed * 100)
-        previousCPUTime = cpuTime
-        previousWallTime = wallTime
-
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
-        let memory = withUnsafeMutablePointer(to: &info) { pointer in
-            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-            }
-        } == KERN_SUCCESS ? Double(info.resident_size) / 1_048_576 : 0
-        return NativePerformanceMetrics(cpuPercent: cpu, memoryMB: memory)
-    }
-}
 
 private enum ClearToneStyle {
     static let accent = Color(red: 0.16, green: 0.55, blue: 0.98)
@@ -871,12 +666,12 @@ struct MenuBarView: View {
 }
 
 private struct StatusPill: View {
-    let phase: String
+    let phase: EnginePhase
 
     private var color: Color {
-        if phase == "error" { return .red }
-        if phase == "processing" { return ClearToneStyle.success }
-        if phase == "starting" || phase == "stopping" { return .orange }
+        if phase == .error { return .red }
+        if phase == .processing { return ClearToneStyle.success }
+        if phase == .starting || phase == .stopping { return .orange }
         return .secondary
     }
 
@@ -886,7 +681,7 @@ private struct StatusPill: View {
                 .fill(color)
                 .frame(width: 7, height: 7)
                 .accessibilityHidden(true)
-            Text(phase.capitalized)
+            Text(phase.rawValue.capitalized)
                 .font(.caption.weight(.semibold))
         }
         .foregroundStyle(color)
@@ -895,7 +690,7 @@ private struct StatusPill: View {
         .background(.thinMaterial, in: Capsule())
         .overlay { Capsule().stroke(color.opacity(0.22), lineWidth: 1) }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Engine status: \(phase)")
+        .accessibilityLabel("Engine status: \(phase.rawValue)")
     }
 }
 
